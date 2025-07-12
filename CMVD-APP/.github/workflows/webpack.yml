@@ -1,0 +1,33 @@
+name: Deploy Vite Project to Production
+
+on:
+  push:
+    branches:
+      - main # Ejecutar solo cuando se hagan cambios en la rama `main`
+
+jobs:
+  build:
+    runs-on: self-hosted
+
+    steps:
+      # 1. Configurar el repositorio
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2. Configurar Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18 # Usa la versión de Node.js adecuada para tu proyecto
+
+      # 3. Instalar dependencias
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Construir el proyecto
+      - name: Build project
+        run: npm run build
+      - name: Deploy to production
+        run: |
+          echo "@Cadeteria2024712pymbu" | sudo -S sh -c 'rsync -av --delete dist/ /usr/local/lsws/app.cadeteria-mvd.com/html/'
+
