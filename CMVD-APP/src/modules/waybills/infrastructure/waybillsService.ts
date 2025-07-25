@@ -52,32 +52,82 @@ const formatDataForExcel = (json,userMap) => {
 };
 
 
-const exportExcel = async (search,filter={}, token) => {
+const exportExcel = async (search: string, filter: Record<string, any> = {}, token: string) => {
   try {
-    let queryString = Object.entries(filter)
-    .filter(([key, value]) => value !== "") 
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-    .join("&");
-    const resp = await request("GET", `waybills?search=${search}&${queryString}`, token);
-    const respUser = await request('GET', `users?role=Cadete`, token);
-    const userMap = respUser.data.reduce((acc, user) => {
-      acc[user.id] = user.name;
-      return acc;
-    }, {});
-    if (!Array.isArray(resp.data)) {
-      console.error("El formato de los datos no es válido.");
+   // ——— 1) Construir todos los filtros en un URLSearchParams ———
+    const params = new URLSearchParams();
+    if (search) params.append("search", search);
+
+    // Mapear filtros de la UI a los que entiende el backend
+    for (const [key, value] of Object.entries(filter)) {
+      if (!value) continue;
+
+          // Si viene fecha de recogida como "date" o "created_at", la parseamos en UTC
+    if (key === "date" || key === "created_at") {
+      const [y, m, d] = (value as string).split("-").map(Number);
+      // UTC midnight
+      const after  = new Date(Date.UTC(y, m - 1, d, 0,  0,  0,   0));
+      // UTC end of day
+      const before = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      // ¡OJO! las claves que tu handler lee son `after` y `before`
+      params.set("after",  after.toISOString());
+      params.set("before", before.toISOString());
+    }
+      else {
+        // Cualquier otro filtro (p.ej. status, search extra, etc.)
+        params.append(key, String(value));
+      }
+    }
+
+    // ——— 2) Primera llamada: obtener página 1 + total_records ———
+    params.set("page", "1");
+    const first = await request(
+      "GET",
+      `waybills?${params.toString()}`,
+      token
+    );
+    if (!Array.isArray(first.data)) {
+      console.error("Export: formato inesperado en first.data");
       return;
     }
-    const formattedData = resp.data.map((waybill) => formatDataForExcel(waybill, userMap));
+
+    // ——— 3) Segunda llamada: limit = total_records, jalar solo los filtrados ———
+    params.set("limit", String(first.total_records));
+    const resp = await request(
+      "GET",
+      `waybills?${params.toString()}`,
+      token
+    );
+    if (!Array.isArray(resp.data)) {
+      console.error("Export: formato inesperado en resp.data");
+      return;
+    }
+
+    console.log(params.toString())
+    const respUser = await request("GET", "users?role=Cadete", token);
+     const userMap = respUser.data.reduce((acc, user) => {
+       acc[user.id] = user.name;
+       return acc;
+     }, {}); 
+
+
+         // ——— 5) Formatear y exportar SOLO lo que devolvió la segunda llamada ———
+    const formattedData = resp.data.map((waybill) =>
+      formatDataForExcel(waybill, userMap)
+    );
     const worksheet = XLSX.utils.json_to_sheet(formattedData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
-    XLSX.writeFile(workbook, "datos.xlsx");
-    console.log("Archivo Excel exportado correctamente.");
-  } catch (error) {
-    console.error("Error al exportar el Excel:", error);
-  }
+     const workbook = XLSX.utils.book_new();
+     XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
+     XLSX.writeFile(workbook, "datos.xlsx");
+
+
+       console.log(`Exportación completada: ${formattedData.length} registros.`);
+   } catch (error) {
+     console.error("Error al exportar el Excel:", error);
+   }
 };
+
+
 
 const request = async (method, endpoint, token, body = null) => {
   const headers = createHeaders(token);
@@ -102,10 +152,12 @@ export const Waybills = {
   getById: (userId, token = "") => request('GET', `waybills/${userId}`, token),
   set: (userData, token = "") => request('POST', 'waybills', token, userData),
   put: (userId, userData, token = "") => request('PUT', `waybills/${userId}`, token, userData),
-  delete: (userId, token = "") => request('DELETE', `waybills/${userId}`, token),
+  //delete: (userId, token = "") => request('DELETE', `waybills/${userId}`, token),
+  cancel: (userId: string, token = "") => request("DELETE", `waybills/${userId}`, token),
   exel:(search,filter,token = "") => exportExcel(search,filter,token),
   historySet:(userId,userData, token = "") => request('POST',  `waybills/${userId}/history`, token, userData),
   cadeteSet:(id,userData, token = "") => request('PUT',  `waybills/${id}/cadete`, token, userData),
   payment:(id,userData, token = "") => request('POST',  `waybills/${id}/payment`, token, userData),
   count: () => request('GET', `waybills/count`,''),
 };
+

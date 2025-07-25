@@ -28,14 +28,14 @@ export default function FormWaybill({ type = "get" }) {
     company_name:"",
     user_name:"",
     branch_id: "",
-    date:null,
+    date:"",
     hour:"",
     price:"",
     sender_city: "Montevideo",
     sender_neighborhood: "",
     sender_address: "",
-    withdrawal_date:null,
-    delivery_date:null,
+    withdrawal_date:"",
+    delivery_date:"",
     delivery_hour: ""
   });
   const navigate = useNavigate();

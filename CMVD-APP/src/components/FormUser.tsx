@@ -6,19 +6,20 @@ import Swal from 'sweetalert2';
 
 export default function FormUser({type="get"}) {
   const [loading, setLoading] = useState(false);
-  const token = useSelector((state) => state.auth.token);
-  const { id } = useParams();
-  const [title, setTitle] = useState("Crear Usuario");
-  const [btn, setBtn] = useState("Crear");
-  const [typeForm, setTypeForm] = useState(type);
-  const [data, setData] = useState({
+  const initialData = {
     name: "",
     email: "",
     role: "Admin",
     password: "",
     confirm_password: "",
     status: "activo",
-  });
+  };
+  const token = useSelector((state) => state.auth.token);
+  const { id } = useParams();
+  const [title, setTitle] = useState("Crear Usuario");
+  const [btn, setBtn] = useState("Crear");
+  const [typeForm, setTypeForm] = useState(type);
+  const [data, setData] = useState(initialData);
   const index = async () => {
     if (type=="post"){
       setBtn("Crear");
@@ -46,43 +47,55 @@ export default function FormUser({type="get"}) {
   }, []);
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
+ const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
     setData((prevData) => ({
       ...prevData,
-      [id]: value,
+      // email siempre en lowercase
+      [id]: id === "email" ? value.toLowerCase() : value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-  
-    let message;
-    if (typeForm === "put") {
-      message = await Users.put(id,data, token);
-    } else {
-      message = await Users.set(data, token);
-    }
-  
-    if ("id" in message) {
-      Swal.fire({
-        icon: 'success',
-        title: '¡Éxito!',
-        text: typeForm === "put" ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente',
-      }).then(() => {
-        navigate('/users');
+    try {
+      const message =
+        typeForm === "put"
+          ? await Users.put(id, data, token)
+          : await Users.set(data, token);
+
+      const success =
+        typeof message === "string" || // tu API devuelve directamente el id
+        (message && typeof message === "object" && "id" in message);
+
+      if (success) {
+        await Swal.fire({
+          icon: "success",
+          title: "¡Éxito!",
+          text:
+            typeForm === "put"
+              ? "Usuario actualizado exitosamente"
+              : "Usuario creado exitosamente",
+        });
+        // Reiniciamos el formulario
+        setData(initialData);
+      } else {
+        await Swal.fire({
+          icon: "error",
+          title: message.error || "Error",
+          text: message.mensaje || "Algo salió mal",
+        });
+      }
+    } catch (err) {
+      await Swal.fire({
+        icon: "error",
+        title: err.error || "Error",
+        text: err.mensaje || err.message || "Error desconocido",
       });
-    } else {
-      console.log("message===",message);
-      Swal.fire({
-        icon: 'error',
-        title:message.error ,
-        text: message.mensaje,
-      });
+    } finally {
+      setLoading(false);
     }
-  
-    setLoading(false);
   };
   
 
@@ -106,16 +119,18 @@ export default function FormUser({type="get"}) {
           </div>
           <div className="w-full md:w-1/2 pl-2">
             <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-700">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={data.email}
-              onChange={handleChange}
-              className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="name@example.com"
-              required
-              disabled={type=="get"}
-            />
+             <input
+            type="email"
+            id="email"
+            value={data.email}
+            onChange={handleChange}
+            autoCapitalize="none"                  // evita mayúsculas en móviles
+            style={{ textTransform: "lowercase" }} // muestra siempre minúsculas
+            className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="name@example.com"
+            required
+            disabled={type=="get"}
+          />
           </div>
         </div>
         <div className="flex flex-wrap mb-5">
@@ -130,7 +145,7 @@ export default function FormUser({type="get"}) {
             >
               <option value="Super Admin">Administrador</option>
               <option value="Cadete">Cadete</option>
-              <option value="Cliente">Cliente</option>
+              {/*<option value="Cliente">Cliente</option>*/}
             </select>
           </div>
           <div className="w-full md:w-1/2 pl-2">

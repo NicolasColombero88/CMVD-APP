@@ -2,10 +2,10 @@
   import { Waybills } from "@/modules/waybills/infrastructure/waybillsService";
   import { Companies } from "@/modules/companies/infrastructure/companiesService";
   import { Calculate } from "@/modules/calculate/infrastructure/calculateService";
-  import { useNavigate, useParams } from "react-router-dom";
+  import { useNavigate, useParams, useLocation  } from "react-router-dom";
   import { useSelector } from "react-redux";
   import { Icon } from "@mdi/react";
-  import { mdiPlusCircle, mdiDelete,mdiMagnify,mdiTruckDeliveryOutline,mdiPackageVariant,mdiPackageVariantClosedCheck,mdiCash } from "@mdi/js";
+  import { mdiPlusCircle, mdiDelete,mdiMagnify,mdiTruckDeliveryOutline,mdiPackageVariant,mdiPackageVariantClosedCheck,mdiCash,mdiArrowLeft, mdiPencil  } from "@mdi/js";
   import Swal from "sweetalert2";
   import ModalSelect from './ModalSelect';
   import SelectNeighborhood from './SelectNeighborhood';
@@ -100,6 +100,8 @@
       ],
     });
     const navigate = useNavigate();
+    const location = useLocation();
+    const page = new URLSearchParams(location.search).get("page") || "1";
     const index = async () => {
       if (type=="post"){
         setBtn("Crear");
@@ -175,6 +177,13 @@
         setData(dataTemp); 
       }
     };
+    // Cuando `modalVisible` cambie a true, lanza la búsqueda para rellenar selectArray
+useEffect(() => {
+  if (modalVisible) {
+    handleSearch('');  // trae todos los cadetes
+  }
+}, [modalVisible]);
+
     useEffect(() => {
       index();
     }, []);
@@ -601,7 +610,7 @@
       <span>Fecha:{data.created_at}</span>
       {type === "put" && (
         <div className="flex flex-wrap items-center gap-2">
-          {role == "Super Admin" && (
+          {(role == "Super Admin" || role == "Admin") && (
             <button
               type="button"
               title="Selecciona cadete"
@@ -615,17 +624,8 @@
               <Icon path={mdiTruckDeliveryOutline} size={1} />
             </button>
           )}
-          {role == "Cadete" && data.status=="Aceptado" &&
-          <button
-            type="button"
-            title="Confirmar recogida"
-            onClick={() => confirmPackagePickup()}
-            className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
-          >
-            <Icon path={mdiPackageVariant} size={1} />
-          </button>
-          }
-          {(role == "Cadete" && data.status=="Recogido") && 
+          
+          {role == "Cadete" && data.status=="Aceptado" && 
             <button
               type="button"
               title="Confirmar entrega"
@@ -648,6 +648,67 @@
           )}
         </div>
       )}
+      {type === "get" && (
+    <div className="flex flex-wrap items-center gap-2">
+      
+
+      {/* Para Cadete: confirmar recogida/entrega */}
+      {role === "Cadete" && data.status === "NA" && (
+       <button
+            type="button"
+            title="Confirmar recogida"
+            onClick={() => confirmPackagePickup()}
+            className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
+          >
+            <Icon path={mdiPackageVariant} size={1} />
+          </button>
+      )}
+      {role === "Cadete" && data.status === "Aceptado" && (
+        <button
+              type="button"
+              title="Confirmar entrega"
+              onClick={() => confirmPackageDelivery()}
+              className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
+            >
+              <Icon path={mdiPackageVariantClosedCheck} size={1} />
+            </button>
+      )}
+      {role === "Cadete" &&
+        data.payment_status !== "Pagado" && (
+          <button
+            type="button"
+            title="Confirmar pago"
+            onClick={() => confirmPayment()}
+            className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
+          >
+            <Icon path={mdiCash} size={1} />
+          </button>
+        )}
+
+      {/* Para Cliente/Admin/Super Admin: editar si “Procesando” */}
+      {["Cliente", "Admin", "Super Admin"].includes(role) &&
+        data.status === "Procesando" && (
+          <button
+            type="button"
+            onClick={() => navigate(`/waybills/edit/${id}?page=${page}`)}
+            className="text-white bg-yellow-600 hover:bg-yellow-700 focus:ring-4 focus:ring-yellow-300 font-medium rounded-lg text-sm px-2 py-2  me-2 mb-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 focus:outline-none dark:focus:ring-yellow-700"
+          >
+            <Icon path={mdiPencil} size={1} />
+          </button>
+        )}
+
+        {/* Cerrar (vuelve a la lista en la misma página) */}
+          <button
+            type="button"
+            title="Cerrar"
+            onClick={() => navigate(-1)}
+            className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800"
+          >
+            <Icon path={mdiArrowLeft} size={1} />
+          </button>
+    </div>
+      )}
+
     </div>
   )}
 </div>

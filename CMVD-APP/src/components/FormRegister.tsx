@@ -38,11 +38,12 @@ export default function FormCompany({ set = (data) => null }) {
 
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
     setData((prevData) => ({
       ...prevData,
-      [id]: value,
+      // email siempre lowercase
+      [id]: id === "email" ? value.toLowerCase() : value,
     }));
   };
 
@@ -144,14 +145,16 @@ export default function FormCompany({ set = (data) => null }) {
               Email
             </label>
             <input
-              type="email"
-              id="email"
-              value={data.email}
-              onChange={handleChange}
-              className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="empresa@example.com"
-              required
-            />
+            type="email"
+            id="email"
+            value={data.email}
+            onChange={handleChange}
+            autoCapitalize="none"                  // evita mayúsculas en móviles
+            style={{ textTransform: "lowercase" }} // muestra siempre minúsculas
+            className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="empresa@example.com"
+            required
+          />
           </div>
           <div className="w-full md:w-1/2 px-2 ">
             <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">

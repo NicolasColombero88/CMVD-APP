@@ -1,328 +1,250 @@
-  import React, { useState, useEffect } from "react";
-  import dayjs from "dayjs";
-  import "dayjs/locale/es";
-  import { Waybills } from "@/modules/waybills/infrastructure/waybillsService";
-  import { Calculate } from "@/modules/calculate/infrastructure/calculateService";
-  import { Companies } from "@/modules/companies/infrastructure/companiesService";
-  import { useNavigate, useParams } from "react-router-dom";
-  import { useSelector } from "react-redux";
-  import { Icon } from "@mdi/react";
-  import { mdiPlusCircle, mdiDelete,mdiMagnify } from "@mdi/js";
-  import Swal from "sweetalert2";
-  import ModalSelect from './ModalSelect';
-  import SelectNeighborhood from './SelectNeighborhood';
-  import SelectHours from './SelectHours';
-  import SelectHoursRange from './SelectHoursRange';
-  import DateFilterDelivery from './DateFilterDelivery';
-  import DateFilter from './DateFilter';
-  export default function FormWaybill({ type = "get" }) {
-    const [loading, setLoading] = useState(false);
-    const [disabled, setDisabled] = useState({branch_id:false});
-    const [modalVisible, setModalVisible] = useState(false);
-    const [selectCompany,setSelectCompany]=useState({id:"",name:"",email:"",branches:[]});
-    const [selectArray,setSelectArray]=useState([]);
-    const token = useSelector((state) => state.auth.token);
-    const companyId = useSelector((state) => state.auth.companyId);
-    const { id } = useParams();
-    const [title, setTitle] = useState("Crear guía");
-    const [btn, setBtn] = useState("Crear");
-    const [typeForm, setTypeForm] = useState(type);
-    const [data, setData] = useState({
-      company_name:"",
-      user_name:"",
-      branch_id: "",
-      date:"",
-      hour:"",
-      price:"",
-      sender_city: "Montevideo",
-      sender_neighborhood: "",
-      sender_address: "",
-      recipient_city: "Montevideo",
-      recipient_neighborhood: "",
-      recipient_address: "",
-      recipient_email:"",
-      recipient_phone:"",
-      recipient_name:"",
-      who_pays:"Remitente",
-      notes:"",
-      withdrawal_date:"",
-      delivery_date:"",
-      delivery_hour: "",
-      package_detail: [
-        {
-          type: "Box",
-          package_number: "",
-          description: "",
-          weight: 0,
-          quantity: 1,
-          price: 0,
-          dimensions: {
-            length: 0,
-            width: 0,
-            height: 0,
-          },
-        },
-      ],
-    });
+import React, { useState, useEffect } from "react";
+import dayjs from "dayjs";
+import "dayjs/locale/es";
+import { Waybills } from "@/modules/waybills/infrastructure/waybillsService";
+import { Calculate } from "@/modules/calculate/infrastructure/calculateService";
+import { Companies } from "@/modules/companies/infrastructure/companiesService";
+import { useNavigate, useParams } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { Icon } from "@mdi/react";
+import { mdiPlusCircle, mdiDelete } from "@mdi/js";
+import Swal from "sweetalert2";
+import ModalSelect from './ModalSelect';
+import SelectNeighborhood from './SelectNeighborhood';
+import SelectHoursRange from './SelectHoursRange';
+import DateFilterDelivery from './DateFilterDelivery';
+import DateFilter from './DateFilter';
+import { mdiArrowLeft } from '@mdi/js';
 
-    const navigate = useNavigate();
+export default function FormWaybill({ type = "get" }) {
+  const [loading, setLoading] = useState(false);
+  const [disabled, setDisabled] = useState({ branch_id: false });
+  const [selectCompany, setSelectCompany] = useState({ id: "", name: "", email: "", branches: [] });
+  const token = useSelector((state: any) => state.auth.token);
+  const companyId = useSelector((state: any) => state.auth.companyId);
+  const { id } = useParams();
+  const [title, setTitle] = useState("Crear guía");
+  const [btn, setBtn] = useState("Crear");
+  const navigate = useNavigate();
+  const [typeForm, setTypeForm] = useState(type);
+  const [data, setData] = useState<any>({
+    company_name: "",
+    user_name: "",
+    branch_id: "",
+    date: new Date(),
+    hour: "",
+    price: 0,
+    sender_city: "Montevideo",
+    sender_neighborhood: "",
+    sender_address: "",
+    recipient_city: "Montevideo",
+    recipient_neighborhood: "",
+    recipient_address: "",
+    recipient_email: "",
+    recipient_phone: "",
+    recipient_name: "",
+    who_pays: "Remitente",
+    notes: "",
+    withdrawal_date: new Date(),
+    delivery_date: new Date(),
+    delivery_hour: "",
+    package_detail: [
+      {
+        type: "Box",
+        package_number: "",
+        description: "",
+        weight: 0,
+        quantity: 1,
+        price: 0,
+        dimensions: { length: 0, width: 0, height: 0 },
+      },
+    ],
+  });
 
-    const index = async () => {
-      let selectArryTemp=await Companies.search("",token);
-      setSelectCompany(selectArryTemp.data[0]);
-      if (type=="post"){
-        setBtn("Crear");
-        setTitle("Crear guía");
-      }
-      if (type == "put") {
-        setBtn("Modificar");
-        setTitle("Modificar guía");
-      }
-      if (type == "get") {
-        setDisabled({branch_id:true});
-        setTitle("Informacion de guía");
-      }
-      if (type == "put" || type == "get") {
-          let dataWb = await Waybills.getById(id, token);
-          let pickupDatetime=dataWb.pickup_datetime.split(" ");
-          let horTem="";
-          if(pickupDatetime.length>3){
-            horTem=pickupDatetime[1]+" - "+pickupDatetime[3];
-          }
-         
-          let company=await Companies.getById(dataWb.company_id,token);
-          let dataTemp={
-            company_name:dataWb.company_name,
-            user_name:company.data.user_name,
-            branch_id: dataWb.branch_id,
-            date:pickupDatetime[0],
-            hour:horTem,
-            price: dataWb.shipping_cost,
-            sender_city:  dataWb.sender.address.city,
-            sender_neighborhood:dataWb.sender.address.neighborhood,
-            sender_address:dataWb.sender.address.street,
-            recipient_city:dataWb.receiver.address.city,
-            recipient_neighborhood: dataWb.receiver.address.neighborhood,
-            recipient_address:dataWb.receiver.address.street,
-            recipient_email:dataWb.receiver.email,
-            recipient_phone:dataWb.receiver.phone,
-            recipient_name:dataWb.receiver.name,
-            package_detail:dataWb.package_details,
-            status:dataWb.status,
-            who_pays:dataWb.who_pays,
-            notes:dataWb.notes,
-            withdrawal_date:dataWb.withdrawal_date,
-            delivery_date:dataWb.delivery_date,
-            delivery_hour:dataWb.delivery_hour
-          }
-          setSelectCompany(company.data);
-          setData(dataTemp); 
-      }
-    };
+  // Carga inicial y parseo de fechas
+  const index = async () => {
+    const companies = await Companies.search("", token);
+    setSelectCompany(companies.data[0]);
 
-    useEffect(() => {
-      index();
-    }, []);
-    const setSelectNeighborhoodTemp = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        recipient_neighborhood: value,
-      }));
-      setSearchZone(value);
+    // Ajuste de título y botón según tipo
+    if (type === "post") { setBtn("Crear"); setTitle("Crear guía"); }
+    if (type === "put") { setBtn("Modificar"); setTitle("Modificar guía"); }
+    if (type === "get") { setDisabled({ branch_id: true }); setTitle("Información de guía"); }
+
+    if (type === "put" || type === "get") {
+      const dataWb = await Waybills.getById(id!, token);
+      
+      const pickupParts = dataWb.pickup_datetime
+  ? dataWb.pickup_datetime.split(" ")
+  : [];
+const pickupDate = pickupParts[0] && !isNaN(new Date(pickupParts[0]).getTime())
+  ? new Date(pickupParts[0])
+  : null;
+
+// Esta es la fecha con la que realmente se creó la guía
+const withdrawal = dataWb.withdrawal_date && !isNaN(new Date(dataWb.withdrawal_date).getTime())
+  ? new Date(dataWb.withdrawal_date)
+  : null;
+const delivery = dataWb.delivery_date && !isNaN(new Date(dataWb.delivery_date).getTime())
+  ? new Date(dataWb.delivery_date)
+  : null;
+  const pickupEnd = pickupParts.length > 1 ? pickupParts.slice(-1)[0] : "";
+
+
+      const companyResp = await Companies.getById(dataWb.company_id, token);
+      const formData = {
+        company_name: dataWb.company_name,
+        user_name: companyResp.data.user_name,
+        branch_id: dataWb.branch_id,
+        date: withdrawal || pickupDate,
+       hour: pickupEnd ? `${pickupParts[1]} - ${pickupEnd}` : dataWb.delivery_hour || "",
+        price: dataWb.shipping_cost,
+        sender_city: dataWb.sender.address.city,
+        sender_neighborhood: dataWb.sender.address.neighborhood,
+        sender_address: dataWb.sender.address.street,
+        recipient_city: dataWb.receiver.address.city,
+        recipient_neighborhood: dataWb.receiver.address.neighborhood,
+        recipient_address: dataWb.receiver.address.street,
+        recipient_email: dataWb.receiver.email,
+        recipient_phone: dataWb.receiver.phone,
+        recipient_name: dataWb.receiver.name,
+        package_detail: dataWb.package_details,
+        status: dataWb.status,
+        who_pays: dataWb.who_pays,
+        notes: dataWb.notes,
+        withdrawal_date: withdrawal,
+        delivery_date: delivery,
+        delivery_hour: dataWb.delivery_hour,
+      };
+      setSelectCompany(companyResp.data);
+      setData(formData);
     }
-    const setSelectHours = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        hour: value,
-      }));
-    };
-    const setSearchZone =async (value) => {
-     
-      let dataC={
-        "sender_city":data.sender_city,
-        "sender_neighborhood": data.sender_neighborhood,
-        "recipient_city": data.recipient_city,
-        "recipient_neighborhood": value,
-        "package_detail":data.package_detail,
-        "company_id":companyId
-      }
-      let selectArryTemp=await Calculate.set(dataC,token);
-      console.log("=*******=",selectArryTemp);
-      if (typeof selectArryTemp.price!="undefined"){
-        setData((prevData) => ({
-          ...prevData,
-          price: selectArryTemp.price,
+  };
+
+  useEffect(() => { index(); }, []);
+
+  // Manejadores de selección de fechas y horas
+  const setSelectDate = (value: Date | null) => {
+    setData(prev => ({ ...prev, withdrawal_date: value || prev.withdrawal_date, date: value || prev.date }));
+  };
+  const setSelectDateDelivery = (value: Date | null) => {
+    setData(prev => ({ ...prev, delivery_date: value || prev.delivery_date }));
+  };
+  // Manejador de hora de retiro
+  const setSelectHours = (value: string) => {
+    setData(prev => ({ ...prev, hour: value }));
+  };
+  // Manejador de hora de entrega
+  const setSelectDeliveryHour = (value: string) => {
+    setData(prev => ({ ...prev, delivery_hour: value }));
+  };
+  // Manejador de barrio del destinatario
+  const setSelectNeighborhoodTemp = (value: string) => {
+    setData(prev => ({ ...prev, recipient_neighborhood: value }));
+  };
+
+  // Otros manejadores (cambios de input, paquete, etc.)
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target;
+    if (id === "branch_id") {
+      const branch = selectCompany.branches.find((b: any) => b.id === value);
+      if (branch) {
+        setData(prev => ({
+          ...prev,
+          branch_id: value,
+          sender_city: branch.address.city,
+          sender_neighborhood: branch.address.neighborhood,
+          sender_address: branch.address.street,
         }));
-      }
-    };
-    const handleChange = (e) => {
-      const { id, value } = e.target;
-      if(id=="branch_id"){
-        const filteredBranch = selectCompany.branches?.find((branch) => branch.id === value);
-        if (filteredBranch) {
-          setData((prevData) => ({
-            ...prevData,
-            sender_city: filteredBranch.address.city,
-            sender_neighborhood: filteredBranch.address.neighborhood,
-            sender_address: filteredBranch.address.street,
-          }));
-        }
-      }
-      if(id=="recipient_neighborhood" && value!=""){
-        setSearchZone(value);
-      }
-      setData((prevData) => ({
-        ...prevData,
-        [id]: value,
-      }));
-    };
-
-    const handlePackageChange = (index, event) => {
-      const { name, value } = event.target;
-    
-      const newPackageDetail = [...data.package_detail];
-      if (name === "length" || name === "width" || name === "height") {
-        newPackageDetail[index].dimensions[name] = value;
-      } else {
-        newPackageDetail[index][name] = value;
-      }
-      setData({ ...data, package_detail: newPackageDetail });
-    };
-    
-
-    const addPackage = () => {
-      setData((prevData) => ({
-        ...prevData,
-        package_detail: [
-          ...prevData.package_detail,
-          {
-            type: "",
-            package_number: "",
-            description: "",
-            weight: "",
-            quantity: "",
-            Price: "",
-            dimensions: { length: "", width: "", height: "" },
-          },
-        ],
-      }));
-    };
-
-    const removePackage = (index) => {
-      setData((prevData) => ({
-        ...prevData,
-        package_detail: prevData.package_detail.filter((_, i) => i !== index),
-      }));
-    };
-
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (new Date(data.delivery_date) < new Date(data.date)) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Fecha inválida',
-          text: 'La fecha de entrega debe ser mayor a la fecha de recogida.',
-          confirmButtonText: 'Entendido',
-        });
         return;
       }
-      setLoading(true);
-      let dateFin="";
-      if (typeof data.date === "string") {
-        dateFin =  data.date.split('T')[0];
-        dateFin = dateFin.split("-").reverse().join("-");
-      } else if (data.date instanceof Date) {
-        dateFin = [
-          String(data.date.getDate()).padStart(2, "0"),
-          String(data.date.getMonth() + 1).padStart(2, "0"),
-          data.date.getFullYear(),
-        ].join("-");
-      } else {
-        dateFin = "";
-      }
-      let horTem=data.hour;
-      if(data.hour=="Sin horario"){
-        horTem="";
-      }
+    }
+    setData(prev => ({ ...prev, [id]: value }));
+  };
 
-      let dataW = {
-        company_id: selectCompany.id,
-        branch_id: data.branch_id,
-        company_name: selectCompany.name,
-        pickup_datetime: dateFin + " " + horTem,
-        who_pays: data.who_pays,
-        notes: data.notes,
-        receiver: {
-          name: data.recipient_name,
-          address: {
-            city: data.recipient_city,
-            neighborhood: data.recipient_neighborhood,
-            street: data.recipient_address,
-          },
-          email: data.recipient_email,
-          phone: data.recipient_phone
-        },
-        package_details: data.package_detail,
-        shipping_cost: data.price,
-        status: "Procesando",
-        withdrawal_date: data.withdrawal_date,
-        delivery_date: data.delivery_date,
-        delivery_hour:data.delivery_hour
-      };
-      
-      
-      let message;
-      if (typeForm === "put") {
-        message = await Waybills.put(id, dataW, token);
-      } else {
-        message = await Waybills.set(dataW, token);
-      }
+  const handlePackageChange = (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const updated = [...data.package_detail];
+    if (name === "length" || name === "width" || name === "height") {
+      updated[idx].dimensions[name] = Number(value);
+    } else {
+      (updated[idx] as any)[name] = name === "quantity" || name === "weight" || name === "price" ? Number(value) : value;
+    }
+    setData(prev => ({ ...prev, package_detail: updated }));
+  };
 
-      if ("id" in message) {
-        Swal.fire({
-          icon: "success",
-          title: "¡Éxito!",
-          text:
-            typeForm === "put"
-              ? "Guía actualizada exitosamente"
-              : "Guía creada exitosamente",
-        }).then(() => {
-          navigate("/waybills");
-        });
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: message.error,
-          text: message.mensaje,
-        });
-      }
+  const addPackage = () => {
+    setData(prev => ({
+      ...prev,
+      package_detail: [...prev.package_detail, { type: "", package_number: "", description: "", weight: 0, quantity: 1, price: 0, dimensions: { length: 0, width: 0, height: 0 } }]
+    }));
+  };
+  const removePackage = (idx: number) => {
+    setData(prev => ({ ...prev, package_detail: prev.package_detail.filter((_: any, i: number) => i !== idx) }));
+  };
 
-      setLoading(false);
+  // Envío del formulario
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (data.delivery_date < data.date) {
+      Swal.fire({ icon: 'error', title: 'Fecha inválida', text: 'La fecha de entrega debe ser mayor a la fecha de recogida.', confirmButtonText: 'Entendido' });
+      return;
+    }
+    setLoading(true);
+
+    const dateStr = dayjs(data.date).format('YYYY-MM-DD');
+    const pickup_dt = `${dateStr} ${data.hour !== 'Sin horario' ? data.hour : ''}`.trim();
+
+    const payload = {
+      company_id: selectCompany.id,
+      branch_id: data.branch_id,
+      company_name: selectCompany.name,
+      pickup_datetime: pickup_dt,
+      who_pays: data.who_pays,
+      notes: data.notes,
+      receiver: {
+        name: data.recipient_name,
+        address: { city: data.recipient_city, neighborhood: data.recipient_neighborhood, street: data.recipient_address },
+        email: data.recipient_email,
+        phone: data.recipient_phone,
+      },
+      package_details: data.package_detail,
+      shipping_cost: data.price,
+      status: typeForm === 'post' ? 'Procesando' : data.status,
+      withdrawal_date: data.withdrawal_date.toISOString(),
+      delivery_date: data.delivery_date.toISOString(),
+      delivery_hour: data.delivery_hour,
     };
-    const setSelectDate = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        withdrawal_date: value,
-        date:value,
-      }));
-    };
-    const setSelectDeliveryHour = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        delivery_hour: value,
-      }));
-    };
-    const setSelectDateDelivery = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        delivery_date: value,
-      }));
-    };
-    return (
-      <div className="block max-w-4xl p-8 bg-white border border-gray-300 rounded-lg shadow mx-auto">
-        <h5 className="mb-4 text-3xl font-bold tracking-tight text-gray-800">{title}</h5>
-      
-        <form className="w-full" onSubmit={handleSubmit}>
+
+    const result = typeForm === 'put'
+      ? await Waybills.put(id!, payload, token)
+      : await Waybills.set(payload, token);
+
+    if (result.id) {
+      Swal.fire({ icon: 'success', title: '¡Éxito!', text: typeForm === 'put' ? 'Guía actualizada exitosamente' : 'Guía creada exitosamente' })
+        .then(() => navigate('/waybills'));
+    } else {
+      Swal.fire({ icon: 'error', title: result.error, text: result.mensaje });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="block max-w-4xl p-8 bg-white border border-gray-300 rounded-lg shadow mx-auto">
+      <h5 className="mb-4 text-3xl font-bold tracking-tight text-gray-800">{title}</h5>
+      <div className="flex items-center justify-between mb-4">
+  <h5 className="text-3xl font-bold tracking-tight text-gray-800">{title}</h5>
+  {/* Cerrar (vuelve a la lista en la misma página) */}
+  <button
+    type="button"
+    title="Cerrar"
+    onClick={() => navigate(-1)}
+    className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800"
+  >
+    <Icon path={mdiArrowLeft} size={1} />
+  </button>
+</div>
+      <form onSubmit={handleSubmit}>
         <div className="flex flex-wrap -mx-2">
           <div className="w-full md:w-1/4 px-2 ">
             <label
@@ -348,21 +270,11 @@
             </select>
 
           </div>
-          <div className="w-full md:w-1/4 px-2 ">
-            {typeForm === "get" ? (
-    <p className="py-2 px-3 bg-gray-100 rounded text-gray-800">
-      Fecha de retiro:{" "}
-      {data.withdrawal_date
-        ? dayjs(data.withdrawal_date).locale("es").format("DD/MM/YYYY")
-        : "-"}
-    </p>
-  ) : (
-    <DateFilter
-      value={data.date}
-      set={setSelectDate}
-      label="Fecha de retiro"
-    />
-  )}
+          <div className="w-full md:w-1/4 px-2">
+            {typeForm === 'get'
+              ? <p className="py-2 px-3 bg-gray-100 rounded">Fecha de retiro: {dayjs(data.withdrawal_date).locale('es').format('DD/MM/YYYY')}</p>
+              : <DateFilter value={data.date instanceof Date && !isNaN(data.date.getTime()) ? data.date : null} set={setSelectDate} label="Fecha de retiro" />
+            }
           </div>
           <div className="w-full md:w-1/3 px-2 ">
             <SelectHoursRange value={data.hour} set={setSelectHours}   labelText="Horario de entrega (9hs - 18hs)"  required={true} disabled={type=="get"} />
@@ -384,21 +296,11 @@
               disabled
             />
           </div>
-          <div className="w-full md:w-1/4 px-2 ">
-            {typeForm === "get" ? (
-    <p className="py-2 px-3 bg-gray-100 rounded text-gray-800">
-      Fecha de entrega:{" "}
-      {data.delivery_date
-        ? dayjs(data.delivery_date).locale("es").format("DD/MM/YYYY")
-        : "-"}
-    </p>
-  ) : (
-    <DateFilterDelivery
-      value={data.delivery_date}
-      set={setSelectDateDelivery}
-      label="Fecha de entrega"
-    />
-  )}  
+           <div className="w-full md:w-1/4 px-2">
+            {typeForm === 'get'
+              ? <p className="py-2 px-3 bg-gray-100 rounded">Fecha de entrega: {dayjs(data.delivery_date).locale('es').format('DD/MM/YYYY')}</p>
+              : <DateFilterDelivery value={data.delivery_date instanceof Date && !isNaN(data.delivery_date.getTime()) ? data.delivery_date : null} set={setSelectDateDelivery} label="Fecha de entrega" />
+            }
           </div>
           <div className="w-full md:w-1/3 px-2 ">
             <SelectHoursRange value={data.delivery_hour} set={setSelectDeliveryHour} required={true} disabled={type == "get"} labelText="Horario de entrega (9hs - 18hs)" />

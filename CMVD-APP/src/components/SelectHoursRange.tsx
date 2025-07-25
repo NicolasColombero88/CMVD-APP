@@ -15,6 +15,7 @@ export default function SelectHoursRange({
   const [endTime, setEndTime] = useState(null);
   const [error, setError] = useState("");
   const [timeRange, setTimeRange] = useState("");
+  const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     if (value && value !== timeRange) {
@@ -24,6 +25,8 @@ export default function SelectHoursRange({
         setEndTime(dayjs(range[1], "HH:mm"));
       }
     }
+    setTouched(false);
+    setError("");
   }, [value]);
 
   useEffect(() => {
@@ -81,6 +84,7 @@ const isWithinAllowedHours = (start, end) => {
 
 
   const handleStartChange = (newValue) => {
+    setTouched(true);
     setStartTime(newValue);
     if (!isWithinAllowedHours(newValue, endTime)) return;
 
@@ -93,6 +97,7 @@ const isWithinAllowedHours = (start, end) => {
   };
 
   const handleEndChange = (newValue) => {
+    setTouched(true);
     setEndTime(newValue);
     if (!isWithinAllowedHours(startTime, newValue)) return;
 
@@ -200,7 +205,7 @@ const isWithinAllowedHours = (start, end) => {
 />
         </Box>
 
-        {error && (
+        {touched &&  error && (
           <Typography variant="body2" color="error" mt={1}>
             {error}
           </Typography>
