@@ -4,7 +4,7 @@ import { useSelector } from "react-redux";
 import Swal from "sweetalert2";
 import Icon from '@mdi/react';
 import SelectNeighborhood from './SelectNeighborhood';
-import { mdiPlusCircle, mdiPencil, mdiDelete } from '@mdi/js';
+import { mdiPlusCircle, mdiPencil, mdiDelete, mdiEye, mdiEyeOff } from '@mdi/js';
 import ReCAPTCHA from "react-google-recaptcha";
 const RECAPTCHA_KEY = import.meta.env.VITE_RECAPTCHA_KEY;
 export default function FormCompany({ set = (data) => null }) {
@@ -33,7 +33,8 @@ export default function FormCompany({ set = (data) => null }) {
     ],
   });
   const [captchaVerified, setCaptchaVerified] = useState(false);
-
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   useEffect(() => {}, []);
 
   const navigate = useNavigate();
@@ -100,6 +101,17 @@ export default function FormCompany({ set = (data) => null }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+ // ——— Validación: password y confirm_password deben coincidir ———
+    if (data.password !== data.confirm_password) {
+      Swal.fire({
+        icon: "error",
+        title: "Error de validación",
+        text: "Las contraseñas no coinciden. Por favor verifica ambos campos.",
+      });
+      return; // cancela el envío
+    }
+
     if (!captchaVerified) {
       Swal.fire({
         icon: "error",
@@ -156,33 +168,67 @@ export default function FormCompany({ set = (data) => null }) {
             required
           />
           </div>
-          <div className="w-full md:w-1/2 px-2 ">
-            <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={data.password}
-              onChange={handleChange}
-              className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="Contraseña"
-              required
-            />
+          <div className="w-full md:w-1/2 px-2">
+            <div className="relative">
+              <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">
+                Contraseña
+              </label>
+              <div className="flex">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  id="password"
+                  value={data.password}
+                  onChange={handleChange}
+                  className="flex-1 py-2 pl-3 pr-14 text-sm bg-white border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="Contraseña"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(v => !v)}
+                  className="flex items-center justify-center px-3 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  tabIndex={-1}
+                >
+                  <Icon
+                    path={showPassword ? mdiEye : mdiEyeOff}
+                    size={1}
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="w-full md:w-1/2 px-2 ">
-            <label htmlFor="confirm_password" className="block mb-2 text-sm font-medium text-gray-700">
-              Confirmar Contraseña
-            </label>
-            <input
-              type="password"
-              id="confirm_password"
-              value={data.confirm_password}
-              onChange={handleChange}
-              className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="Confirmar contraseña"
-              required
-            />
+          <div className="w-full md:w-1/2 px-2">
+            <div className="relative">
+              <label htmlFor="confirm_password" className="block mb-2 text-sm font-medium text-gray-700">
+                Confirmar Contraseña
+              </label>
+              <div className="flex">
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  name="confirm_password"
+                  id="confirm_password"
+                  value={data.confirm_password}
+                  onChange={handleChange}
+                  className="flex-1 py-2 pl-3 pr-14 text-sm bg-white border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="Confirmar contraseña"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(v => !v)}
+                  className="flex items-center justify-center px-3 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  tabIndex={-1}
+                >
+                  <Icon
+                    path={showConfirm ? mdiEye : mdiEyeOff}
+                    size={1}
+                    aria-label={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  />
+                </button>
+              </div>
+            </div>
           </div>
           <div className="w-full md:w-1/2 px-2 ">
             <label htmlFor="phone" className="block mb-2 text-sm font-medium text-gray-900">

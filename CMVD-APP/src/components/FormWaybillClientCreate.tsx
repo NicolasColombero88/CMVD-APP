@@ -5,6 +5,7 @@ import { Companies } from "@/modules/companies/infrastructure/companiesService";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Icon } from "@mdi/react";
+import dayjs from 'dayjs';
 import { mdiPlusCircle, mdiDelete,mdiMagnify,mdiClose } from "@mdi/js";
 import Swal from "sweetalert2";
 import SelectNeighborhood from './SelectNeighborhood';
@@ -219,6 +220,44 @@ export default function FormWaybill({ type = "get" }) {
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+// --------------------------------------------------
+// VALIDACIÓN DE GAP SOLO EN MISMO DÍA
+// --------------------------------------------------
+const retiroDateRaw   = data.date;
+const entregaDateRaw  = data.delivery_date;
+// Asegurarnos que son Date
+const retiroDate  = retiroDateRaw  instanceof Date ? retiroDateRaw  : new Date(retiroDateRaw);
+const entregaDate = entregaDateRaw instanceof Date ? entregaDateRaw : new Date(entregaDateRaw);
+
+// 1) Comprobamos mismo día calendario
+if (retiroDate.toDateString() === entregaDate.toDateString()) {
+  // 2) Extraemos solo la hora de inicio
+  const [horaRetiro]  = data.hour          .split(" - ");
+  const [horaEntrega] = data.delivery_hour .split(" - ");
+
+  // 3) Creamos dos Date con la misma fecha y las horas correspondientes
+  const dtRetiro  = new Date(retiroDate);
+  const [h1, m1]  = horaRetiro .split(":").map(Number);
+  dtRetiro.setHours(h1, m1, 0, 0);
+
+  const dtEntrega = new Date(entregaDate);
+  const [h2, m2]  = horaEntrega.split(":").map(Number);
+  dtEntrega.setHours(h2, m2, 0, 0);
+
+  // 4) Si la diferencia es menor a 60 000 ms (1 hora), error
+  if (dtEntrega.getTime() - dtRetiro.getTime() < 60 * 60 * 1000) {
+    Swal.fire({
+      icon: "error",
+      title: "Horario inválido",
+      text: "Para el mismo día debe haber al menos 1 hora de diferencia entre el inicio de retiro y de entrega.",
+    });
+    return;
+  }
+}
+// --------------------------------------------------
+
+
     if (new Date(data.delivery_date) < new Date(data.date)) {
       Swal.fire({
         icon: 'error',
@@ -310,6 +349,7 @@ export default function FormWaybill({ type = "get" }) {
   
         if (!("id" in message)) {
           allSucceeded = false;
+          console.error("Error en respuesta API:", message);
           Swal.fire({
             icon: "error",
             title: "Error",
@@ -495,10 +535,10 @@ export default function FormWaybill({ type = "get" }) {
 
           </div>
           <div className="w-full md:w-1/4 px-2 ">
-            <DateFilter value={data.date} set={setSelectDate} label="Fecha de retiro" />
+            <DateFilter value={data.date} set={setSelectDate} label="Fecha de retiro" minDate={new Date()} />
           </div>
           <div className="w-full md:w-1/3 px-2 ">
-            <SelectHoursRange  value={data.hour} set={setSelectHours}   disabled={disabled.hour} labelText="Hora de retiro (8hs - 16hs)" />
+            <SelectHoursRange  value={data.hour} set={setSelectHours} disabled={disabled.hour} labelText="Hora de retiro (8hs - 16hs)" startDate={data.date} endDate={data.delivery_date} />
           </div>
           <div className="w-full md:w-1/4 px-2 ">
             <label
@@ -518,10 +558,10 @@ export default function FormWaybill({ type = "get" }) {
             />
           </div>
           <div className="w-full md:w-1/4 px-2 ">
-            <DateFilterDelivery value={data.delivery_date} set={setSelectDateDelivery} label="Fecha de entrega" />  
+            <DateFilterDelivery value={data.delivery_date} set={setSelectDateDelivery} label="Fecha de entrega" minDate={data.date} />  
           </div>
           <div className="w-full md:w-1/3 px-2 ">
-            <SelectHoursRange value={data.delivery_hour} set={setSelectDeliveryHour} required={true} disabled={type == "get"} labelText="Horario de entrega (9hs - 18hs)" />
+            <SelectHoursRange value={data.delivery_hour} set={setSelectDeliveryHour} required={true} disabled={type == "get"} labelText="Horario de entrega (9hs - 18hs)" startDate={data.date} endDate={data.delivery_date} />
           </div>
           <div className="w-full md:w-1/4 px-2 ">
             <label htmlFor="company_email" className="block mb-2 text-sm font-medium text-gray-700">

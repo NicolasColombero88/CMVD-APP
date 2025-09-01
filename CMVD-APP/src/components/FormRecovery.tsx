@@ -2,7 +2,12 @@ import React, { useState } from "react";
 import { Recovery } from '@/modules/auth/infrastructure/authService';
 import Swal from "sweetalert2";
 import { useNavigate, useParams } from "react-router-dom";
+
+import { Icon } from "@mdi/react";
+import { mdiEye, mdiEyeOff } from "@mdi/js";
 export default function FormRecovery() {
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [pin, setPin] = useState("");
@@ -127,20 +132,47 @@ export default function FormRecovery() {
             <h2 className="text-2xl font-semibold text-center text-gray-800 mb-6">
               Paso 2: Ingrese su nueva contraseña
             </h2>
-            <input
-              type="password"
-              placeholder="Ingrese la nueva contraseña"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg mb-4 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <input
-              type="password"
-              placeholder="Confirme la nueva contraseña"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg mb-4 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="relative mb-4">
+              <input
+                type={showNewPassword ? "text" : "password"}
+                placeholder="Ingrese la nueva contraseña"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="w-full pr-10 px-4 py-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center"
+              >
+                <Icon
+                  path={showNewPassword ? mdiEyeOff : mdiEye}
+                  size={1}
+                  className="text-gray-600"
+                />
+              </button>
+            </div>
+            
+            <div className="relative mb-4">
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder="Confirme la nueva contraseña"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="w-full pr-10 px-4 py-2 border rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center"
+              >
+                <Icon
+                  path={showConfirmPassword ? mdiEyeOff : mdiEye}
+                  size={1}
+                  className="text-gray-600"
+                />
+              </button>
+            </div>
             <button
               onClick={handlePasswordSubmit}
               className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition duration-300"

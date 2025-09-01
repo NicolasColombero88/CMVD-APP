@@ -19,7 +19,7 @@ export default function users() {
   return (
     <Layout>
       {role=="Cliente" &&   <FormWaybillClient type="post" /> }
-      {role=="Super Admin" &&   <FormWaybill type="post" /> }
+      {(role === "Super Admin" || role === "Admin") && <FormWaybill type="post" />}
     </Layout>
   );
 }

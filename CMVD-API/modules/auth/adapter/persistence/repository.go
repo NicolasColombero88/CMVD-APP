@@ -2,75 +2,77 @@
 package persistence
 
 import (
-    "api/modules/shared/adapter/persistence"
-    "context"
-    "time"
-    "go.mongodb.org/mongo-driver/bson"
-    "go.mongodb.org/mongo-driver/bson/primitive" 
-    "api/modules/auth/domain"
-    "gopkg.in/gomail.v2"
-    "strconv"
-    "os"
-    "github.com/joho/godotenv"
-    "log"
-    "fmt"
-    "crypto/tls"
+	"api/modules/auth/domain"
+	"api/modules/shared/adapter/persistence"
+	"context"
+	"crypto/tls"
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gopkg.in/gomail.v2"
 )
 
 type Repository struct {
-    database *persistence.Database
+	database *persistence.Database
 }
 
 func NewRepository() (*Repository, error) {
-    db, err := persistence.NewDatabase()
-    if err != nil {
-        return nil, err
-    }
-    return &Repository{database: db}, nil
+	db, err := persistence.NewDatabase()
+	if err != nil {
+		return nil, err
+	}
+	return &Repository{database: db}, nil
 }
 func (r *Repository) InsertUser(userDocument interface{}) error {
-    usersCollection := r.database.GetCollection("users")
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    _, err := usersCollection.InsertOne(ctx, userDocument)
-    return err
+	usersCollection := r.database.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := usersCollection.InsertOne(ctx, userDocument)
+	return err
 }
 func (r *Repository) GetUserByEmail(email string) (domain.User, error) {
-    var user domain.User
-    usersCollection := r.database.GetCollection("users")
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    filter := bson.M{"email": email}
-    err := usersCollection.FindOne(ctx, filter).Decode(&user)
+	var user domain.User
+	usersCollection := r.database.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	filter := bson.M{"email": email}
+	err := usersCollection.FindOne(ctx, filter).Decode(&user)
 	return user, err
 }
 func (r *Repository) GetCompanyEmail(email string) (domain.User, error) {
-    var user domain.User
-    companyCollection := r.database.GetCollection("companies")
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    filter := bson.M{"email": email}
-    err := companyCollection.FindOne(ctx, filter).Decode(&user)
-    return user, err
+	var user domain.User
+	companyCollection := r.database.GetCollection("companies")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	filter := bson.M{"email": email}
+	err := companyCollection.FindOne(ctx, filter).Decode(&user)
+	return user, err
 }
 func (r *Repository) InsertCompany(companyDocument interface{}) error {
-    companyCollection := r.database.GetCollection("companies")
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    _, err := companyCollection.InsertOne(ctx, companyDocument)
-    return err
+	companyCollection := r.database.GetCollection("companies")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := companyCollection.InsertOne(ctx, companyDocument)
+	return err
 }
 func (r *Repository) DeleteUser(userID primitive.ObjectID) error {
-    usersCollection := r.database.GetCollection("users")
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
+	usersCollection := r.database.GetCollection("users")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-    filter := bson.M{"_id": userID}
-    _, err := usersCollection.DeleteOne(ctx, filter)
-    return err
+	filter := bson.M{"_id": userID}
+	_, err := usersCollection.DeleteOne(ctx, filter)
+	return err
 }
 func (r *Repository) Email(toEmail, toName, subject, htmlContent string) error {
 	err := godotenv.Load()
+
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 		return err
@@ -104,6 +106,13 @@ func (r *Repository) Email(toEmail, toName, subject, htmlContent string) error {
 
 	err = d.DialAndSend(m)
 	if err != nil {
+		log.Printf("smtphost: %v /n"+"smtpport: %v /n"+"username: %v /n"+"password: %v /n"+"from: %v /n"+"toEmail: %v /n",
+			smtpHost,
+			smtpPortStr,
+			username,
+			password,
+			from,
+			toEmail)
 		log.Printf("Error sending email: %v", err)
 		return fmt.Errorf("error sending email: %w", err)
 	}

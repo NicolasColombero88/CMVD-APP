@@ -58,6 +58,18 @@ export default function FormUser({type="get"}) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // ——— Validación: contraseña y confirmación deben coincidir ———
+    if (type === "post" && data.password !== data.confirm_password)  {
+      Swal.fire({
+        icon: "error",
+        title: "Error de contraseña",
+        text: "Las contraseñas no coinciden. Por favor verifica ambos campos.",
+      });
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const message =

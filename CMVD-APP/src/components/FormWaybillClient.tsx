@@ -186,10 +186,22 @@ const delivery = dataWb.delivery_date && !isNaN(new Date(dataWb.delivery_date).g
   // Envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+ if (data.deliveryDate < data.pickupDate) {
+    Swal.fire({
+      icon: "error",
+      title: "Fechas inválidas",
+      text: "La fecha de entrega no puede ser anterior a la de retiro",
+    });
+    return;
+  }
+
     if (data.delivery_date < data.date) {
       Swal.fire({ icon: 'error', title: 'Fecha inválida', text: 'La fecha de entrega debe ser mayor a la fecha de recogida.', confirmButtonText: 'Entendido' });
       return;
     }
+
+    
     setLoading(true);
 
     const dateStr = dayjs(data.date).format('YYYY-MM-DD');
@@ -222,7 +234,7 @@ const delivery = dataWb.delivery_date && !isNaN(new Date(dataWb.delivery_date).g
 
     if (result.id) {
       Swal.fire({ icon: 'success', title: '¡Éxito!', text: typeForm === 'put' ? 'Guía actualizada exitosamente' : 'Guía creada exitosamente' })
-        .then(() => navigate('/waybills'));
+        .then(() => navigate(-1));
     } else {
       Swal.fire({ icon: 'error', title: result.error, text: result.mensaje });
     }

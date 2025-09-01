@@ -348,7 +348,7 @@ export default function FormWaybill({ type = "get" }) {
           title: "¡Éxito!",
           text: "Todos los registros se crearon exitosamente",
         }).then(() => {
-          navigate("/waybills");
+          navigate(-1);
         });
       }
     } catch (error) {
@@ -639,7 +639,7 @@ export default function FormWaybill({ type = "get" }) {
             />
           </div>
           <div className="w-full md:w-1/4 px-2 ">
-            <DateFilterDelivery value={data.delivery_date} set={setSelectDateDelivery} label="Fecha de entrega" />
+            <DateFilterDelivery value={data.delivery_date} set={setSelectDateDelivery} label="Fecha de entrega" minDate={data.date}/>
           </div>
           <div className="w-full md:w-1/3 px-2 ">
             <SelectHoursRange value={data.delivery_hour} set={setSelectDeliveryHour} required={true} disabled={type == "get"} labelText="Horario de entrega (9hs - 18hs)" />

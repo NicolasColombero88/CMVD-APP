@@ -246,7 +246,7 @@
               ? "Guía actualizada exitosamente"
               : "Guía creada exitosamente",
         }).then(() => {
-          navigate("/waybills");
+          navigate(-1);
         });
       } else {
         Swal.fire({

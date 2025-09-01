@@ -290,6 +290,22 @@ useEffect(() => {
       if(data.hour=="Sin horario"){
         horTem="";
       }
+
+       const computeStatus = (): "Procesando" | "Aceptado" => {
+        if (type === "post") {
+          // en creación siempre Procesando
+          return "Procesando";
+        }
+        // si soy Admin o Super Admin, conservo el estado actual
+        if (role === "Admin" || role === "Super Admin") {
+          return data.status as "Procesando" | "Aceptado";
+        }
+        // los demás roles (cadete/cliente) aplican lógica normal
+        return data.cadete_id
+          ? "Aceptado"
+          : "Procesando";
+      };      
+
       let dataW={
         "company_id":selectCompany.id,
         "branch_id":data.branch_id ,
@@ -309,7 +325,7 @@ useEffect(() => {
         },
         "package_details": data.package_detail,
         "shipping_cost": data.price,
-        "status": "Aceptado",
+        "status": computeStatus(),
         withdrawal_date:data.withdrawal_date,
         delivery_date:data.delivery_date,
         delivery_hour:data.delivery_hour
@@ -332,7 +348,7 @@ useEffect(() => {
               ? "Guía actualizada exitosamente"
               : "Guía creada exitosamente",
         }).then(() => {
-          navigate("/waybills");
+          navigate(-1);
         });
       } else {
         Swal.fire({

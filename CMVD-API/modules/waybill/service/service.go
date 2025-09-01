@@ -7,6 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -16,6 +20,33 @@ var company = companySv.NewCompanyService()
 type CreateWaybillHook func(waybill *domain.Waybill, tokenClaims interface{}) error
 
 var createWaybillHooks []CreateWaybillHook
+
+// checkDailyLimit lanza error si ya se alcanzó el máximo del día
+func (s *WaybillServiceImpl) checkDailyLimit(companyID primitive.ObjectID, date time.Time) error {
+	// 1) Calculamos inicio de día
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	dateKey := start.Format("2006-01-02")
+	count, err := s.userRepository.GetCountDailyShipments(companyID, dateKey)
+	if err != nil {
+		return fmt.Errorf("falló conteo diario: %w", err)
+	}
+	// Día en mayúsculas: MONDAY, TUESDAY, ...
+	day := strings.ToUpper(start.Weekday().String())
+	maxEnvios, err := strconv.Atoi(os.Getenv("MAX_DAILY_SHIPMENTS_" + day))
+	if err != nil {
+		return fmt.Errorf("configuración inválida para %s: %w", day, err)
+	}
+	if count >= int64(maxEnvios) {
+		return fmt.Errorf("límite diario (%d) alcanzado para %s", maxEnvios, day)
+	}
+	return nil
+}
+
+// timeMustParse es helper para parsear sin propagar error
+/*func timeMustParse(dateStr string) time.Time {
+	t, _ := time.Parse("2006-01-02", dateStr)
+	return t
+}*/
 
 func AddCreateWaybillHook(hook CreateWaybillHook) {
 	createWaybillHooks = append(createWaybillHooks, hook)
@@ -73,10 +104,27 @@ func (s *WaybillServiceImpl) CreateWaybill(waybill domain.Waybill, tokenClaims i
 		return primitive.NilObjectID, fmt.Errorf("error creating waybill document: %w", err)
 	}
 
-	err = s.userRepository.InsertWaybill(branchDocument)
-	if err != nil {
-		return primitive.NilObjectID, fmt.Errorf("error inserting waybill: %w", err)
+	// Validar límite diario para la fecha de retiro
+	if err := s.checkDailyLimit(companyId, branchDocument.WithdrawalDate); err != nil {
+		return primitive.NilObjectID, err
 	}
+
+	// 1) Validar que la fecha de delivery no sea anterior a la de pickup
+	if branchDocument.DeliveryDate.Before(branchDocument.WithdrawalDate) {
+		return primitive.NilObjectID, errors.New("la fecha de delivery no puede ser anterior a la de pickup")
+	}
+
+	// 2) Validar límite diario para la fecha de RETIRO
+	if err := s.checkDailyLimit(companyId, branchDocument.WithdrawalDate); err != nil {
+		return primitive.NilObjectID, err
+	}
+	// 3) Validar límite diario para la fecha de ENTREGA
+	if err := s.checkDailyLimit(companyId, branchDocument.DeliveryDate); err != nil {
+
+		return primitive.NilObjectID, err
+	}
+
+	err = s.userRepository.InsertWaybill(branchDocument)
 
 	var hookErrors []error
 	for _, hook := range createWaybillHooks {

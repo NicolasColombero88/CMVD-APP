@@ -1,5 +1,14 @@
 const API_URL = import.meta.env.VITE_API_URL+'v1/';
 import * as XLSX from "xlsx";
+const formatDateOnly = (iso: string): string => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-AR', {
+    day:   '2-digit',
+    month: '2-digit',
+    year:  'numeric',
+  });
+};
+
 const createHeaders = (token) => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${token}`,
@@ -26,27 +35,30 @@ const formatDate = (dateString) => {
 const formatDataForExcel = (json,userMap) => {
   return {
     "Empresa": json.company_name || "",
-    "Remitente - Nombre": json.sender?.name || "",
+    //"Remitente - Nombre": json.sender?.name || "",
     "Remitente - Dirección (Calle)": json.sender?.address?.street || "",
     "Remitente - Barrio": json.sender?.address?.neighborhood || "",
-    "Remitente - Ciudad": json.sender?.address?.city || "",
+    //"Remitente - Ciudad": json.sender?.address?.city || "",
     "Remitente - Teléfono": json.sender?.phone || "",
     "Destinatario - Nombre": json.receiver?.name || "",
     "Destinatario - Dirección (Calle)": json.receiver?.address?.street || "",
     "Destinatario - Barrio": json.receiver?.address?.neighborhood || "",
-    "Destinatario - Ciudad": json.receiver?.address?.city || "",
+    //"Destinatario - Ciudad": json.receiver?.address?.city || "",
     "Destinatario - Teléfono": json.receiver?.phone || "",
-    "Fecha de Envío": json.pickup_datetime.replace(/(\d{2})-(\d{2})-(\d{4})/, '$1/$2/$3')|| "",
+    "Fecha de Retiro": json.pickup_datetime || "",                                // renombrado
+    "Fecha de Entrega": json.delivery_date && json.delivery_hour
+    ? `${formatDateOnly(json.delivery_date)} ${json.delivery_hour}`
+    : "",
     "Precio": json.shipping_cost || "",
-    "Estado": json.status || "",
-    "Fecha de Creación": json.created_at
+    //"Estado": json.status || "",
+    /*"Fecha de Creación": json.created_at
       ? formatDate(json.created_at)
-      : "",
-    "Fecha de Actualización": json.updated_at
+      : "",*/
+    /*"Fecha de Actualización": json.updated_at
       ? formatDate(json.updated_at)
-      : "",
-    "Nombre de cadete": userMap[json.cadete_id] || "Desconocido", 
-    "Estado de pago": json.payment_status || "Pendiente",
+      : "",*/
+    //"Nombre de cadete": userMap[json.cadete_id] || "Desconocido", 
+    //"Estado de pago": json.payment_status || "Pendiente",
     "Quien paga": json.who_pays
   };
 };

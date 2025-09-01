@@ -62,18 +62,18 @@ const isWithinAllowedHours = (start, end) => {
       endH < 10 || endH > 16 ||
       (endH === 16 && endM > 0)
     ) {
-      setError("Para retiro:\nInicio entre 08:00 y 14:00\nFin entre 10:00 y 16:00\nMínimo 2h de diferencia.");
+      setError("El horario de reitro es de 08:00 a 16:00, y la franja horaria mínima tiene que ser de 2hs");
       return false;
     }
   }
 
   if (isEntrega) {
     if (
-      startH < 9 || startH > 16 ||
-      endH < 11 || endH > 18 ||
+      startH < 11 || startH > 16 ||
+      endH < 13 || endH > 18 ||
       (endH === 18 && endM > 0)
     ) {
-      setError("Para entrega:\nInicio entre 09:00 y 16:00\nFin entre 11:00 y 18:00\nMínimo 2h de diferencia.");
+      setError("El horario de entrega es de 09:00 a 18:00, y la franja mínima tiene que ser de 2h");
       return false;
     }
   }
@@ -140,69 +140,79 @@ const isWithinAllowedHours = (start, end) => {
           }}
         >
          <MobileTimePicker
-  label="Hora de inicio"
-  disabled={disabled}
-  value={startTime}
-  onChange={handleStartChange}
-  minutesStep={1}
-  ampm={false}
-  openTo="hours"
-  minTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(8).minute(0) : dayjs().hour(9).minute(0)}
-  maxTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(14).minute(0) : dayjs().hour(16).minute(0)}
-  slotProps={{
-    textField: {
-      fullWidth: true,
-      InputProps: {
-        sx: {
-          paddingTop: 0.35,
-          paddingBottom: 0.35,
-          borderRadius: 2,
-          height: 37.6,
-          fontSize: "14px",
-        },
-      },
-      InputLabelProps: {
-        sx: {
-          fontSize: "12px",
-        },
-      },
-    },
-  }}
-  sx={{ flex: "1 1 45%" }}
-/>
+            label="Hora de inicio"
+            disabled={disabled}
+            value={startTime}
+            onChange={handleStartChange}
+            minutesStep={1}
+            ampm={false}
+            openTo="hours"
+            minTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(8).minute(0) : dayjs().hour(11).minute(0).second(0).millisecond(0)}
+            maxTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(14).minute(0) : dayjs().hour(16).minute(0).second(0).millisecond(0)}
+            slotProps={{
+              textField: {
+                fullWidth: true,
+                required: true,                               
+                error: touched && !endTime,                  
+                helperText: touched && !endTime
+                  ? 'Horario obligatorio'
+                  : '',   
+                InputProps: {
+                  sx: {
+                    paddingTop: 0.35,
+                    paddingBottom: 0.35,
+                    borderRadius: 2,
+                    height: 37.6,
+                    fontSize: "14px",
+                  },
+                },
+                InputLabelProps: {
+                  sx: {
+                    fontSize: "12px",
+                  },
+                },
+              },
+            }}
+            sx={{ flex: "1 1 45%" }}
+          />
 
 
           <MobileTimePicker
-  label="Hora de fin"
-  disabled={disabled}
-  value={endTime}
-  onChange={handleEndChange}
-  minutesStep={1}
-  ampm={false}
-  openTo="hours"
-  minTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(10).minute(0) : dayjs().hour(11).minute(0)}
-  maxTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(16).minute(0) : dayjs().hour(18).minute(0)}
-  slotProps={{
-    textField: {
-      fullWidth: true,
-      InputProps: {
-        sx: {
-          paddingTop: 0.35,
-          paddingBottom: 0.35,
-          borderRadius: 2,
-          height: 37.6,
-          fontSize: "14px",
-        },
-      },
-      InputLabelProps: {
-        sx: {
-          fontSize: "12px",
-        },
-      },
-    },
-  }}
-  sx={{ flex: "1 1 45%" }}
-/>
+            label="Hora de fin"
+            disabled={disabled}
+            value={endTime}
+            onChange={handleEndChange}
+            minutesStep={1}
+            ampm={false}
+            openTo="hours"
+            minTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(10).minute(0) : dayjs().hour(11).minute(0).second(0).millisecond(0)}
+            maxTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(16).minute(0) : dayjs().hour(18).minute(0).second(0).millisecond(0)}
+            slotProps={{
+              textField: {
+                fullWidth: true,
+                required: true,                               
+                error: touched && !startTime,                  
+                helperText: touched && !startTime
+                  ? 'Horario obligatorio'
+                  : '',   
+                InputProps: {
+                  sx: {
+                    paddingTop: 0.35,
+                    paddingBottom: 0.35,
+                    borderRadius: 2,
+                    height: 37.6,
+                    fontSize: "14px",
+                  },
+                },
+                InputLabelProps: {
+                  sx: {
+                    fontSize: "12px",
+                  },
+                },
+              },
+            }}
+            sx={{ flex: "1 1 45%" }}
+          />
         </Box>
 
         {touched &&  error && (

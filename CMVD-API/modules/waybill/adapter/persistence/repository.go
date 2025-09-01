@@ -525,6 +525,52 @@ func (r *Repository) GetCountWithdrawalDate(fechaminimaStr string) ([]map[string
 	log.Println(string(jsonData))
 	return results, nil
 }
+
+// GetCountDailyShipments suma retiros y entregas agendadas para una fecha dada
+func (r *Repository) GetCountDailyShipments(companyID primitive.ObjectID, dateStr string) (int64, error) {
+	// 1) Obtenemos la colección y el contexto
+	waybillsCollection := r.database.GetCollection("waybills")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 2) Parseamos la fecha YYYY-MM-DD y calculamos fin de día
+	start, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		return 0, fmt.Errorf("fecha inválida: %w", err)
+	}
+	end := start.Add(24 * time.Hour)
+
+	// 3) Filtro base por company_id
+	baseFilter := bson.M{"company_id": companyID}
+
+	// 4) Contar retiros (withdrawal_datetime)
+	filtroRetiros := bson.M{
+		"$and": []bson.M{
+			baseFilter,
+			{"withdrawal_datetime": bson.M{"$gte": start, "$lt": end}},
+		},
+	}
+	retirosCount, err := waybillsCollection.CountDocuments(ctx, filtroRetiros)
+	if err != nil {
+		return 0, err
+	}
+
+	// 5) Contar entregas (delivery_datetime)
+	filtroEntregas := bson.M{
+		"$and": []bson.M{
+			baseFilter,
+			{"delivery_datetime": bson.M{"$gte": start, "$lt": end}},
+		},
+	}
+	entregasCount, err := waybillsCollection.CountDocuments(ctx, filtroEntregas)
+	if err != nil {
+		return 0, err
+	}
+
+	// 6) Devolver la suma
+	return retirosCount + entregasCount, nil
+}
+
 func getEnvAsInt(key string) int {
 	value, err := strconv.Atoi(os.Getenv(key))
 	if err != nil {
