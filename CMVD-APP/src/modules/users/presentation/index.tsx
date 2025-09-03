@@ -63,7 +63,7 @@ export default function UsersPage() {
       >
         <Icon path={mdiPencil} size={1} />
       </button>
-      {(role == "Super Admin") && (
+      {(role === "Super Admin" || role === "Admin") && (
         <ButtonAlert 
             title="¿Estás seguro de eliminar el usuario?" 
             body="Esta acción no se puede deshacer y eliminará información asociada a este." 

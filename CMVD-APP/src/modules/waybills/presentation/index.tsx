@@ -10,6 +10,7 @@ interface Filter {
   pickup_datetime: string;
 }
 import * as XLSX from "xlsx";
+import { toCanon, toDisplay, toDayBoundsZ } from '@/utils/dateUtils';
 import Layout from '@/components/Layout';
 import Table from '@/components/Table';
 import ModalSelect from '@/components/ModalSelect';
@@ -54,12 +55,8 @@ const [currentPage, setCurrentPage] = useState(initialPage);
   const [selectCadeteTemp,setSelectCadete]=useState({id:"",name:""});
   const [selectWaybill,setSelectWaybill]=useState("");
   // Función para formatear fecha y hora
-  const formatDateTime = (date, hour) => {
-    if (!date) return "";
-    const d = new Date(date);
-    const formattedDate = d.toLocaleDateString('es-AR');
-    return hour ? `${formattedDate} ${hour}` : formattedDate;
-  };
+  const fmtDateTime = (date?: string, hour?: string) =>
+  date ? `${toDisplay(date)}${hour ? ` ${hour}` : ''}` : '';
   // Obtiene datos y añade teléfono destinatario y fecha de entrega
   const fetchUsers = async (page = 1, searchText = "", filterTemp = {}) => {
   try {
@@ -67,17 +64,17 @@ const [currentPage, setCurrentPage] = useState(initialPage);
     const activeFilter = Object.keys(filterTemp).length > 0 ? filterTemp : filter;
 
     // ✨ Usar fechas en formato ISO
-    if (activeFilter.created_at) {
-      const date = new Date(activeFilter.created_at);
-      filterP.after  = date.toISOString().split("T")[0] + "T00:00:00Z";
-      filterP.before = date.toISOString().split("T")[0] + "T23:59:59Z";
-    }
+ if (activeFilter.created_at) {
+  const { from, to } = toDayBoundsZ(activeFilter.created_at);
+  filterP.after  = from;  // withdrawal_date >= from
+  filterP.before = to;    // withdrawal_date <= to
+}
 
-    if (activeFilter.pickup_datetime) {
-      const date = new Date(activeFilter.pickup_datetime);
-      filterP.delivery_after  = date.toISOString().split("T")[0] + "T00:00:00Z";
-      filterP.delivery_before = date.toISOString().split("T")[0] + "T23:59:59Z";
-    }
+if (activeFilter.pickup_datetime) {
+  const { from, to } = toDayBoundsZ(activeFilter.pickup_datetime);
+  filterP.delivery_after  = from;  // delivery_date >= from
+  filterP.delivery_before = to;    // delivery_date <= to
+}
 
     // Resto de filtros
     Object.entries(activeFilter).forEach(([key, val]) => {
@@ -108,10 +105,8 @@ const [currentPage, setCurrentPage] = useState(initialPage);
       response.data.map((item) => ({
         ...item,
         receiver_phone: item.receiver?.phone || "",
-        delivery_datetime: formatDateTime(
-          item.delivery_date,
-          item.delivery_hour
-        ),
+        pickup_datetime: toDisplay(item.withdrawal_date),
+        delivery_datetime: fmtDateTime(item.delivery_date, item.delivery_hour),
       }))
     );
     setTotalPages(response.total_pages);

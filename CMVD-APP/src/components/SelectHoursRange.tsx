@@ -69,8 +69,8 @@ const isWithinAllowedHours = (start, end) => {
 
   if (isEntrega) {
     if (
-      startH < 11 || startH > 16 ||
-      endH < 13 || endH > 18 ||
+      startH < 9 || startH > 16 ||
+      endH < 11 || endH > 18 ||
       (endH === 18 && endM > 0)
     ) {
       setError("El horario de entrega es de 09:00 a 18:00, y la franja mínima tiene que ser de 2h");
@@ -147,14 +147,14 @@ const isWithinAllowedHours = (start, end) => {
             minutesStep={1}
             ampm={false}
             openTo="hours"
-            minTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(8).minute(0) : dayjs().hour(11).minute(0).second(0).millisecond(0)}
+            minTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(8).minute(0) : dayjs().hour(9).minute(0).second(0).millisecond(0)}
             maxTime={labelText.toLowerCase().includes("etiro") ? dayjs().hour(14).minute(0) : dayjs().hour(16).minute(0).second(0).millisecond(0)}
             slotProps={{
               textField: {
                 fullWidth: true,
                 required: true,                               
-                error: touched && !endTime,                  
-                helperText: touched && !endTime
+                error: touched && !startTime,                  
+                helperText: touched && !startTime
                   ? 'Horario obligatorio'
                   : '',   
                 InputProps: {
