@@ -10,6 +10,8 @@
   import ModalSelect from './ModalSelect';
   import SelectNeighborhood from './SelectNeighborhood';
   import SelectHours from './SelectHours';
+  import SelectCity from "./SelectCity";
+  
   export default function FormWaybill({ type = "get" }) {
     const [loading, setLoading] = useState(false);
     const [disabled, setDisabled] = useState({branch_id:false});
@@ -408,20 +410,35 @@
                 >
                   Ciudad 
                 </label>
-                <select
-                  id="recipient_city"
-                  value={data.recipient_city}
-                  onChange={handleChange}
-                  className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  required
-                  disabled={type=="get"}
-                >
-                  <option value="Canelones">Canelones</option>
-                  <option value="Montevideo">Montevideo</option>
-                </select>
+                <SelectCity
+  id="recipient_city"
+  name="recipient_city"
+  token={token}
+  value={data.recipient_city || ""}
+  disabled={type === "get"}
+  set={(v) =>
+    setData((prev:any) => ({
+      ...prev,
+      recipient_city: v,
+      recipient_neighborhood: "",  // obliga a elegir barrio válido
+    }))
+  }
+  onChange={handleChange}          // ← esto dispara el cálculo
+/>
+
               </div>
               <div className="mb-3">
-              <SelectNeighborhood type="" disabled={type=="get"}  token={token} city={data.recipient_city} value={data.recipient_neighborhood} set={setSelectNeighborhoodTemp}/>
+            <SelectNeighborhood
+  id="recipient_neighborhood"
+  name="recipient_neighborhood"
+  city={data.recipient_city || ""}
+  value={data.recipient_neighborhood || ""}
+  set={(v) =>
+    setData((prev:any) => ({ ...prev, recipient_neighborhood: v }))
+  }
+  disabled={type === "get"}
+  onChange={handleChange}          // ← esto dispara el cálculo
+/>
               </div>
               <div className="mb-3">
                 <label

@@ -1,1250 +1,762 @@
-  import React, { useState, useEffect } from "react";
-  import { Waybills } from "@/modules/waybills/infrastructure/waybillsService";
-  import { Companies } from "@/modules/companies/infrastructure/companiesService";
-  import { Calculate } from "@/modules/calculate/infrastructure/calculateService";
-  import { useNavigate, useParams, useLocation  } from "react-router-dom";
-  import { useSelector } from "react-redux";
-  import { Icon } from "@mdi/react";
-  import { mdiPlusCircle, mdiDelete,mdiMagnify,mdiTruckDeliveryOutline,mdiPackageVariant,mdiPackageVariantClosedCheck,mdiCash,mdiArrowLeft, mdiPencil  } from "@mdi/js";
-  import Swal from "sweetalert2";
-  import ModalSelect from './ModalSelect';
-  import SelectNeighborhood from './SelectNeighborhood';
-  import ButtonStatus from './ButtonStatus';
-  import SelectHours from './SelectHours';
-  import SelectCadete from '@/components/SelectCadete';
-  import {Users } from '@/modules/users/infrastructure/usersService';
-  import DateFilter from './DateFilter';
-  import DateFilterDelivery from './DateFilterDelivery';
-  import SelectHoursRange from './SelectHoursRange';
-  import ButtonCreateBranch from './ButtonCreateBranch';
-  export default function FormWaybill({ type = "get" }) {
-    const [modalBranch, setModalBranch] = useState(false);
-    const role = useSelector((state) => state.auth.role);
-    const user_id = useSelector((state) => state.auth.id);
-    const [loading, setLoading] = useState(false);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [selectCompany,setSelectCompany]=useState({id:"",name:"",email:"",branches:[]});
-    const [selectArray,setSelectArray]=useState([]);
-    const token = useSelector((state) => state.auth.token);
-    const { id } = useParams();
-    const [title, setTitle] = useState("Crear guía");
-    const [btn, setBtn] = useState("Crear");
-    const [selectCadeteTemp,setSelectCadete]=useState({id:"",name:""});
-    const handleClick = (event) => {
-      event.preventDefault(); 
-      setModalVisible(true);
-    };
-    const [disabled, setDisabled] = useState({
-      company_name: false,
-      user_name: false,
-      branch_id: false,
-      date: false,
-      hour: false,
-      price: false,
-      sender_city: false,
-      sender_neighborhood: false,
-      sender_address: false,
-      sender_phone: false,
-      recipient_city: false,
-      recipient_neighborhood: false,
-      recipient_address: false,
-      recipient_name: false,
-      recipient_phone: false,
-      who_pays: false,
-      cadete_id:false,
-      notes:false,
-      payment_status:false,
-      delivery_date:false
-    });
-    const [data, setData] = useState({
-      company_name:"",
-      user_name:"",
-      branch_id: "",
-      cadete_id:"",
-      status:"",
-      date:"",
-      hour:"",
-      price:"",
-      sender_city: "Montevideo",
-      sender_neighborhood: "",
-      sender_address: "",
-      sender_phone: "",
-      recipient_city: "Montevideo",
-      recipient_neighborhood: "",
-      recipient_address: "",
-      recipient_apartment:"",
-      recipient_email:"",
-      recipient_phone:"",
-      recipient_name:"",
-      who_pays:"Remitente",
-      payment_status:"",
-      created_at:"",
-      notes:"",
-      withdrawal_date:"",
-      delivery_date:"",
-      delivery_hour:"",
-      package_detail: [
-        {
-          type: "Box",
-          package_number: "",
-          description: "",
-          weight: 0,
-          quantity: 1,
-          price:0,
-          dimensions: {
-            length: 0,
-            width: 0,
-            height: 0,
-          },
-        },
-      ],
-    });
-    const navigate = useNavigate();
-    const location = useLocation();
-    const page = new URLSearchParams(location.search).get("page") || "1";
-    const index = async () => {
-      if (type=="post"){
-        setBtn("Crear");
-        setTitle("Crear guía");
-      }
-      if (type == "put") {
-        setBtn("Modificar");
-        setTitle("Modificar guía");
-      }
-      if (type == "get") {
-        setBtn("");
-        setTitle("Informacion de guia");
-        setDisabled((prevState) => 
-          Object.keys(prevState).reduce((acc, key) => {
-            acc[key] = true;
-            return acc;
-          }, {})
-        );
-      }
-      if (type == "put" || type == "get") {
-        let dataWb = await Waybills.getById(id, token);
-        let pickupDatetime=dataWb.pickup_datetime.split(" ");
-        let company=await Companies.getById(dataWb.company_id,token);
-        if(pickupDatetime[0].split("-")[0].length==2){
-           pickupDatetime[0]=pickupDatetime[0].split("-").reverse().join("-");
-        }
-        const formattedDate = new Date(dataWb.created_at).toLocaleString("es-ES", {
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        });
-        let horTem="";
-        if(pickupDatetime.length>3){
-          horTem=pickupDatetime[1]+" - "+pickupDatetime[3];
-        }
-        let pickupDate="";
-        if(typeof pickupDatetime[0]!="undefined"){
-          pickupDate= pickupDatetime[0];
-        }
-        let dataTemp={
-          company_name:dataWb.company_name,
-          user_name:company.data.user_name,
-          branch_id: dataWb.branch_id,
-          date:pickupDate,
-          hour:horTem,
-          price: dataWb.shipping_cost,
-          sender_city:  dataWb.sender.address.city,
-          sender_neighborhood:dataWb.sender.address.neighborhood,
-          sender_address:dataWb.sender.address.street,
-          sender_phone: dataWb.sender.phone,      // asignación teléfono cliente
-          recipient_city:dataWb.receiver.address.city,
-          recipient_neighborhood: dataWb.receiver.address.neighborhood,
-          recipient_address:dataWb.receiver.address.street,
-          recipient_email:dataWb.receiver.email,
-          recipient_phone:dataWb.receiver.phone,
-          recipient_name:dataWb.receiver.name,
-          package_detail:dataWb.package_details,
-          status:dataWb.status,
-          who_pays:dataWb.who_pays,
-          cadete_id:dataWb.cadete_id,
-          payment_status:dataWb.payment_status,
-          notes:dataWb.notes,
-          created_at:formattedDate,
-          withdrawal_date:dataWb.withdrawal_date,
-          delivery_date:dataWb.delivery_date,
-          delivery_hour:dataWb.delivery_hour,
-        }
-        setSelectCompany(company.data);
-        setData(dataTemp); 
-      }
-    };
-    // Cuando `modalVisible` cambie a true, lanza la búsqueda para rellenar selectArray
-useEffect(() => {
-  if (modalVisible) {
-    handleSearch('');  // trae todos los cadetes
+// src/pages/FormWaybill.tsx
+import React, { useEffect, useState } from "react";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+import "dayjs/locale/es";
+import { Waybills } from "@/modules/waybills/infrastructure/waybillsService";
+import { Users } from "@/modules/users/infrastructure/usersService";
+import { useNavigate, useParams } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { Icon } from "@mdi/react";
+import { mdiArrowLeft } from "@mdi/js";
+
+dayjs.locale("es");
+dayjs.extend(customParseFormat);
+
+/** ================== Tipos ================== */
+type Address = {
+  city?: string;
+  neighborhood?: string;
+  street?: string;
+  apartment?: string;
+  [k: string]: any;
+};
+
+type Receiver = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: Address;
+  [k: string]: any;
+};
+
+type PackageItem = {
+  id?: string;
+  description?: string;
+  desc?: string;
+  name?: string;
+  quantity?: number | string;
+  weight?: number | string; // kg
+  length?: number | string; // cm
+  width?: number | string; // cm
+  height?: number | string; // cm
+  value?: number | string;
+  fragile?: boolean;
+  dimensions?: { length?: number | string; width?: number | string; height?: number | string };
+  [k: string]: any;
+};
+
+type WaybillView = {
+  id?: string;
+  cadete_id?: string;
+  cadete_name?: string;
+  cadete?: { id?: string; name?: string; user_name?: string; email?: string };
+  company_name?: string;
+  branch_id?: string;
+  withdrawal_date?: string | Date;
+  delivery_date?: string | Date;
+  pickup_datetime?: string;
+  pickup_start?: string;
+  pickup_end?: string;
+  delivery_hour?: string;
+  shipping_cost?: number | string;
+  who_pays?: "Remitente" | "Destinatario" | string;
+  notes?: string;
+  receiver?: Receiver;
+  sender?: { phone?: string; address?: Address; name?: string; [k: string]: any };
+  status?: string;
+  payment_status?: string;
+  packages?: PackageItem[];
+  items?: PackageItem[];
+  package_detail?: Record<string, any> | PackageItem[];
+  package_details?: any;
+  client_email?: string;
+  company_email?: string;
+  user_id?: string;
+  created_by?: string;
+  [k: string]: any;
+};
+
+/** ================== Helpers Fecha ================== */
+const DDMMYYYY = "DD-MM-YYYY";
+const KNOWN_FORMATS = [
+  DDMMYYYY,
+  "YYYY-MM-DD",
+  "DD/MM/YYYY",
+  "YYYY/MM/DD",
+  "YYYY-MM-DDTHH:mm:ssZ",
+  "YYYY-MM-DDTHH:mm:ss.SSSZ",
+  "YYYY-MM-DDTHH:mm:ss",
+];
+
+function parseToDate(input: any): Date | null {
+  if (!input) return null;
+  if (input instanceof Date && !isNaN(input.getTime())) return input;
+  if (typeof input === "object" && input?.$date) {
+    const d = new Date(input.$date);
+    return isNaN(d.getTime()) ? null : d;
   }
-}, [modalVisible]);
+  const s = String(input).trim();
+  for (const fmt of KNOWN_FORMATS) {
+    const d = dayjs(s, fmt, true);
+    if (d.isValid()) return d.toDate();
+  }
+  // fallback: try Date constructor
+  const d2 = dayjs(s);
+  return d2.isValid() ? d2.toDate() : null;
+}
 
-    useEffect(() => {
-      index();
-    }, []);
-    const setSelectNeighborhoodTemp = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        recipient_neighborhood: value,
-      }));
-      setSearchZone(value);
-    }
-    const setSelectCompanyTemp = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        company_name: value.name,
-        user_name: value.user_name,
-      }));
-      setSelectCompany(value);
-    };
-    const setSelectHours = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        hour: value,
-      }));
-     
-    };
-    const handleChange = (e) => {
-      const { id, value } = e.target;
-      if(id=="branch_id"){
-        const filteredBranch = selectCompany.branches?.find((branch) => branch.id === value);
-        if (filteredBranch) {
-          setData((prevData) => ({
-            ...prevData,
-            sender_city: filteredBranch.address.city,
-            sender_neighborhood: filteredBranch.address.neighborhood,
-            sender_address: filteredBranch.address.street,
-          }));
-        }
-      }
-      setData((prevData) => ({
-        ...prevData,
-        [id]: value,
-      }));
-    };
-    const handlePackageChange = (index, event) => {
-      const { name, value } = event.target;
-      const newPackageDetail = [...data.package_detail];
-      value2 = value !== "" && !isNaN(value) ? Number(value) : "";
-      if (name === "length" || name === "width" || name === "height") {
-        newPackageDetail[index].dimensions[name] = value;
-      } else {
-        newPackageDetail[index][name] = value;
-      }
-      setData({ ...data, package_detail: newPackageDetail });
-    };
-    const addPackage = () => {
-      setData((prevData) => ({
-        ...prevData,
-        package_detail: [
-          ...prevData.package_detail,
-          {
-            type: "",
-            package_number: "",
-            description: "",
-            weight: "",
-            quantity: "",
-            Price: "",
-            dimensions: { length: "", width: "", height: "" },
-          },
-        ],
-      }));
-    };
-    const removePackage = (index) => {
-      setData((prevData) => ({
-        ...prevData,
-        package_detail: prevData.package_detail.filter((_, i) => i !== index),
-      }));
-    };
-    const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (new Date(data.delivery_date) < new Date(data.date)) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Fecha inválida',
-          text: 'La fecha de entrega debe ser mayor a la fecha de recogida.',
-          confirmButtonText: 'Entendido',
-        });
-        return;
-      }
-      setLoading(true);
-      let dateFin="";
-      if (typeof data.date === "string") {
-        dateFin =  data.date.split('T')[0];
-        dateFin = dateFin.split("-").reverse().join("-");
-      } else if (data.date instanceof Date) {
-        dateFin = [
-          String(data.date.getDate()).padStart(2, "0"),
-          String(data.date.getMonth() + 1).padStart(2, "0"),
-          data.date.getFullYear(),
-        ].join("-");
-      } else {
-        dateFin = "";
-      }
-      let horTem=data.hour;
-      if(data.hour=="Sin horario"){
-        horTem="";
-      }
+function formatView(dateLike: any): string {
+  const d = parseToDate(dateLike);
+  return d ? dayjs(d).format("DD/MM/YYYY") : "-";
+}
 
-       const computeStatus = (): "Procesando" | "Aceptado" => {
-        if (type === "post") {
-          // en creación siempre Procesando
-          return "Procesando";
-        }
-        // si soy Admin o Super Admin, conservo el estado actual
-        if (role === "Admin" || role === "Super Admin") {
-          return data.status as "Procesando" | "Aceptado";
-        }
-        // los demás roles (cadete/cliente) aplican lógica normal
-        return data.cadete_id
-          ? "Aceptado"
-          : "Procesando";
-      };      
+/** ================== Util mostrar objeto genérico ================== */
+function renderKeyValue(key: string, value: any) {
+  if (value === null || typeof value === "undefined" || value === "") return null;
+  return (
+    <div key={key} className="py-1">
+      <div className="text-xs text-gray-500">{key}</div>
+      <div className="font-medium">{String(value)}</div>
+    </div>
+  );
+}
 
-      let dataW={
-        "company_id":selectCompany.id,
-        "branch_id":data.branch_id ,
-        "company_name": selectCompany.name,
-        "pickup_datetime":dateFin +" "+horTem,
-        "who_pays":data.who_pays,
-        "notes":data.notes,
-        "receiver": {
-          "name": data.recipient_name,
-          "address": {
-            "city":data.recipient_city,
-            "neighborhood": data.recipient_neighborhood,
-            "street": data.recipient_address+","+data.recipient_apartment,
-          },
-          "email": data.recipient_email,
-          "phone":data.recipient_phone
-        },
-        "package_details": data.package_detail,
-        "shipping_cost": data.price,
-        "status": computeStatus(),
-        withdrawal_date:data.withdrawal_date,
-        delivery_date:data.delivery_date,
-        delivery_hour:data.delivery_hour
-      };
-      console.log("==000===",dataW);
-     
-      let message;
-      if (type === "put") {
-        message = await Waybills.put(id, dataW, token);
-      } else {
-        message = await Waybills.set(dataW, token);
-      }
+/** ================== Extra helpers ================== */
+// Extrae una fecha desde pickup_datetime (si viene "YYYY-MM-DD 09:00 - 12:00" o "DD-MM-YYYY ...")
+function extractDateFromPickupDatetime(s?: string): Date | null {
+  if (!s || typeof s !== "string") return null;
+  // Buscar YYYY-MM-DD primero
+  const reISO = /(\d{4}-\d{2}-\d{2})/;
+  const m1 = s.match(reISO);
+  if (m1) {
+    const d = parseToDate(m1[0]);
+    if (d) return d;
+  }
+  // Buscar DD-MM-YYYY
+  const reDD = /(\d{2}-\d{2}-\d{4})/;
+  const m2 = s.match(reDD);
+  if (m2) {
+    const d = parseToDate(m2[0]);
+    if (d) return d;
+  }
+  // fallback: tomar primer token y probar
+  const first = s.split(" ").filter(Boolean)[0];
+  if (first) {
+    const d = parseToDate(first);
+    if (d) return d;
+  }
+  return null;
+}
 
-      if ("id" in message) {
-        Swal.fire({
-          icon: "success",
-          title: "¡Éxito!",
-          text:
-            type === "put"
-              ? "Guía actualizada exitosamente"
-              : "Guía creada exitosamente",
-        }).then(() => {
-          navigate(-1);
-        });
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: message.error,
-          text: message.mensaje,
-        });
-      }
-      setLoading(false);
-    };
-    const handleSearch = async (text) => {
-      let selectArryTemp=await Users.getCadetes(text,token);
-      setSelectArray(selectArryTemp.data);
-    };
-    const setSearchZone =async (value) => {
-     
-      let dataC={
-        "sender_city":data.sender_city,
-        "sender_neighborhood": data.sender_neighborhood,
-        "recipient_city": data.recipient_city,
-        "recipient_neighborhood": value,
-        "package_detail":data.package_detail,
-        "company_id":selectCompany.id
-      }
-      let selectArryTemp=await Calculate.set(dataC,token);
-      if (typeof selectArryTemp.price!="undefined"){
-        setData((prevData) => ({
-          ...prevData,
-          price: selectArryTemp.price,
-        }));
-      }
-    };
-    const selectCadete = async () => {
+/** ================== Componente ================== */
+export default function FormWaybill() {
+  const token = useSelector((state: any) => state.auth.token);
+  const navigate = useNavigate();
+  const { id } = useParams();
+
+  const [title] = useState("Información de guía");
+  const [loading, setLoading] = useState(false);
+  const [wb, setWb] = useState<WaybillView | null>(null);
+
+  useEffect(() => {
+    (async () => {
       try {
-       
-        setModalVisible(true);
-      } catch (error) {
-        console.error("Error al eliminar usuario:", error);
-      }
-    };
-    const confirmPackagePickup = async () => {
+        if (!id) return;
+        setLoading(true);
+
+        // 1) Traer la guía (aceptar res o res.data)
+        const raw = await Waybills.getById(id, token);
+        const mid = (raw && (raw.data || raw)) || null;
+        if (!mid) {
+          console.error("Waybills.getById devolvió vacío:", raw);
+          setWb(null);
+          setLoading(false);
+          return;
+        }
+
+        // console.debug para debugging del payload (descomenta si querés inspeccionar)
+        // console.log("DEBUG waybill raw:", mid);
+
+        // normalizar
+        let normalized = normalizeWaybill(mid);
+
+        // Si no vino cadete_name pero hay cadete_id, intentar resolver por Users.getById (si existe)
         try {
-          let data = {
-            status: "Recogido",
-            location: "",
-          };
-      
-          const result = await Swal.fire({
-            title: '¿Recibiste el paquete?',
-            showCancelButton: true,
-            confirmButtonText: 'Sí',
-            cancelButtonText: 'Cancelar',
-            icon: 'question',
-          });
-      
-          if (result.isConfirmed) {
-            Swal.fire({
-              title: '',
-              text: 'Cargando...',
-              showConfirmButton: false,
-              allowOutsideClick: false,
-              allowEscapeKey: false,
-              didOpen: () => {
-                Swal.showLoading();
-              },
-            });
-            const historySet = await Waybills.historySet(id, data, token);
-            if (historySet && typeof historySet.id !== "undefined") {
-              Swal.fire({
-                icon: "success",
-                title: "¡Éxito!",
-                text: "Se cambió el estado del envío.",
-              });
-            } else {
-              Swal.fire({
-                icon: "error",
-                title: "Error",
-                text: "No se pudo actualizar el estado del envío.",
-              });
-            }
-          } else if (result.isDismissed) {
-            console.log('El paquete no fue recibido.');
-          }
-        } catch (error) {
-          console.error("Error al cambiar el estado del paquete:", error);
-          Swal.fire({
-            icon: "error",
-            title: "Error",
-            text: "Ocurrió un problema al procesar la solicitud.",
-          });
-        }
-    };
-    const confirmPackageDelivery = async () => {
-          try {
-            let data = {
-              status: "Entregado",
-              location: "",
-            };
-            const result = await Swal.fire({
-              title: 'Paquete entregado?',
-              showCancelButton: true,
-              confirmButtonText: 'Sí',
-              cancelButtonText: 'Cancelar',
-              icon: 'question',
-            });
-            if (result.isConfirmed) {
-              Swal.fire({
-                title: '',
-                text: 'Cargando...',
-                showConfirmButton: false,
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                didOpen: () => {
-                  Swal.showLoading();
-                },
-              });
-        const historySet = await Waybills.historySet(id, data, token);
-          if (historySet && typeof historySet.id !== "undefined") {
-            Swal.fire({
-              icon: "success",
-              title: "¡Éxito!",
-              text: "Se cambió el estado del envío.",
-            });
-          } else {
-            Swal.fire({
-              icon: "error",
-              title: "Error",
-              text: "No se pudo actualizar el estado del envío.",
-            });
-          }
-        } else if (result.isDismissed) {
-          console.log('El paquete no fue recibido.');
-        }
-      } catch (error) {
-        console.error("Error al cambiar el estado del paquete:", error);
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: "Ocurrió un problema al procesar la solicitud.",
-        });
-      }
-    };
-    const confirmPayment = async () => {
-        try {
-          let dataPayment = {
-            payment_status: "Pagado",
-            payment_reference: role+"-"+user_id,
-            payment_method: "Efectivo",
-          };
-      
-          const result = await Swal.fire({
-            title: "¿Confirma que recibió el pago?",
-            text: data.who_pays + " realizó el pago. Por favor, confirme.",
-            showCancelButton: true,
-            confirmButtonText: "Sí, confirmar",
-            cancelButtonText: "Cancelar",
-            icon: "question",
-          });
-      
-          if (result.isConfirmed) {
-            Swal.fire({
-              title: "",
-              text: "Cargando...",
-              showConfirmButton: false,
-              allowOutsideClick: false,
-              allowEscapeKey: false,
-              didOpen: () => {
-                Swal.showLoading();
-              },
-            });
-      
-            const historySet = await Waybills.payment(id, dataPayment, token);
-            console.log("===******====", historySet);
-      
-            if (historySet && typeof historySet.id !== "undefined") {
-              Swal.fire({
-                icon: "success",
-                title: "¡Éxito!",
-                text: "El estado del pago se cambió correctamente.",
-              });
-              index();
-            } else {
-              Swal.fire({
-                icon: "error",
-                title: "Error",
-                text: "No se pudo actualizar el estado del pago.",
-              });
-            }
-          } else if (result.isDismissed) {
-            console.log("La confirmación del pago fue cancelada.");
-          }
-        } catch (error) {
-          console.error("Error al cambiar el estado del pago:", error);
-          Swal.fire({
-            icon: "error",
-            title: "Error",
-            text: "Ocurrió un problema al procesar la solicitud.",
-          });
-        }
-    };
-    const setSelectUserTemp = async(value) => {
-        Swal.fire({
-          title: '',
-          text: 'Cargando...',
-          button: false,
-          showConfirmButton: false,
-          allowOutsideClick: false,
-          allowEscapeKey: false,
-          showCancelButton: false,
-          timer: 5000,
-          timerProgressBar: true,
-              didOpen: () => {
-                  Swal.showLoading()
-              },
-        });
-        setSelectCadete(value);
-        let data={cadete_id:value.id};
-        let cadeteTemp = await Waybills.cadeteSet(id,data,token);
-        if(typeof cadeteTemp.id!="undefined"){
-          Swal.fire({
-                icon: "success",
-                title: "¡Éxito!",
-                text: "Se asignó el cadete al envio" ,
-          }).then(() => {
-            index(); 
-          });
-        }else{
-          Swal.fire({
-              icon: "error",
-              title: cadeteTemp.error,
-              text:cadeteTemp.mensaje ,
-          });
-        }
-      };
-    const setSelectDate = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        withdrawal_date: value,
-        date:value,
-      }));
-    };
-    const setSelectDateDelivery = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        delivery_date: value,
-      }));
-    };
-    const addBranch =async () => {
-        let company=await Companies.getById(selectCompany.id,token);
-        setSelectCompany(company.data);
-        setModalBranch(false);
-    }
-    const valitateBranch =async () => {
-      
-
-        setModalBranch(true);
-    }
-    const setSelectDeliveryHour = (value) => {
-      setData((prevData) => ({
-        ...prevData,
-        delivery_hour: value,
-      }));
-    };
-    return (
-      <div className="block max-w-4xl p-8 bg-white border border-gray-300 rounded-lg shadow mx-auto">
- <div className="flex flex-wrap items-center">
-  <div className="w-full sm:w-[45%] mb-4 sm:mb-0">
-    <h5 className="text-2xl font-bold tracking-tight text-gray-800 sm:text-3xl break-words">
-      {title}
-    </h5>
-  </div>
-  <ButtonCreateBranch  visible={modalBranch} setVisible={setModalBranch} set={addBranch}  idTemp={selectCompany.id}/>
-  {(type === "put" || type === "get") && (
-    <div className="w-full sm:w-[55%] flex flex-wrap items-center gap-2">
-      <span>Fecha:{data.created_at}</span>
-      {type === "put" && (
-        <div className="flex flex-wrap items-center gap-2">
-          {(role == "Super Admin" || role == "Admin") && (
-            <button
-              type="button"
-              title="Selecciona cadete"
-              onClick={() => selectCadete()}
-              className={`text-white font-medium rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-4 ${
-                (data.cadete_id == "" ||data.cadete_id=="000000000000000000000000" )
-                  ? "bg-green-600 hover:bg-green-700 focus:ring-green-300 dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800"
-                  : "bg-orange-600 hover:bg-orange-700 focus:ring-orange-300 dark:bg-orange-600 dark:hover:bg-orange-700 dark:focus:ring-orange-800"
-              }`}
-            >
-              <Icon path={mdiTruckDeliveryOutline} size={1} />
-            </button>
-          )}
-          
-          {role == "Cadete" && data.status=="Aceptado" && 
-            <button
-              type="button"
-              title="Confirmar entrega"
-              onClick={() => confirmPackageDelivery()}
-              className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
-            >
-              <Icon path={mdiPackageVariantClosedCheck} size={1} />
-            </button>
-          }
-       
-          {(role == "Cadete" || role == "Super Admin"  || role == "Admin") && data.payment_status!="Pagado"  && (
-          <button
-            type="button"
-            title="Confirmar pago"
-            onClick={() => confirmPayment()}
-            className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
-          >
-            <Icon path={mdiCash} size={1} />
-          </button>
-          )}
-        </div>
-      )}
-      {type === "get" && (
-    <div className="flex flex-wrap items-center gap-2">
-      
-
-      {/* Para Cadete: confirmar recogida/entrega */}
-      {role === "Cadete" && data.status === "NA" && (
-       <button
-            type="button"
-            title="Confirmar recogida"
-            onClick={() => confirmPackagePickup()}
-            className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
-          >
-            <Icon path={mdiPackageVariant} size={1} />
-          </button>
-      )}
-      {role === "Cadete" && data.status === "Aceptado" && (
-        <button
-              type="button"
-              title="Confirmar entrega"
-              onClick={() => confirmPackageDelivery()}
-              className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
-            >
-              <Icon path={mdiPackageVariantClosedCheck} size={1} />
-            </button>
-      )}
-      {role === "Cadete" &&
-        data.payment_status !== "Pagado" && (
-          <button
-            type="button"
-            title="Confirmar pago"
-            onClick={() => confirmPayment()}
-            className="text-white bg-green-600 hover:bg-green-700 focus:ring-4 focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-green-600 dark:hover:bg-green-700 focus:outline-none dark:focus:ring-green-800"
-          >
-            <Icon path={mdiCash} size={1} />
-          </button>
-        )}
-
-      {/* Para Cliente/Admin/Super Admin: editar si “Procesando” */}
-      {["Cliente", "Admin", "Super Admin"].includes(role) &&
-        data.status === "Procesando" && (
-          <button
-            type="button"
-            onClick={() => navigate(`/waybills/edit/${id}?page=${page}`)}
-            className="text-white bg-yellow-600 hover:bg-yellow-700 focus:ring-4 focus:ring-yellow-300 font-medium rounded-lg text-sm px-2 py-2  me-2 mb-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 focus:outline-none dark:focus:ring-yellow-700"
-          >
-            <Icon path={mdiPencil} size={1} />
-          </button>
-        )}
-
-        {/* Cerrar (vuelve a la lista en la misma página) */}
-          <button
-            type="button"
-            title="Cerrar"
-            onClick={() => navigate(-1)}
-            className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-3 py-2 dark:bg-blue-600 dark:hover:bg-blue-700 focus:outline-none dark:focus:ring-blue-800"
-          >
-            <Icon path={mdiArrowLeft} size={1} />
-          </button>
-    </div>
-      )}
-
-    </div>
-  )}
-</div>
-        <ModalSelect
-              visible={modalVisible}
-              title="Selecciona un cadete"
-              placeholder="Nombre  o email" 
-              titles={['Nombre', 'Email']}
-              columns={['name', 'email']}
-              data={selectArray}
-              set={setSelectUserTemp}
-              search={handleSearch}
-              setVisible={setModalVisible} 
-            />
-        <form className="w-full" onSubmit={handleSubmit}>
-        <div className="flex flex-wrap -mx-2">
-          <div className="w-full md:w-1/3 px-2">
-            <label htmlFor="name" className="block mb-2 text-sm font-medium text-gray-700">
-              Empresa 
-            </label>
-            {type!="post"  &&
-              <input
-                type="text"
-                id="disabled-input"
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                value={data.company_name}
-                required
-                disabled
-              />
-            }
-            {type=="post"  &&
-            <div className="relative mt-1 bg-white sm:rounded-lg w-full border border-gray-200 rounded-[10px]">
-              <input
-                type="text"
-                id="name"
-                value={data.company_name}
-                onChange={handleChange}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="Nombre de la empresa"
-                onMouseDown={handleClick}
-                required
-              />
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                <button
-                  type="button"
-                  className="text-gray-700 text-sm font-medium flex items-center justify-center"
-                  onClick={() => setModalVisible(true)}
-                >
-                  <Icon path={mdiMagnify} size={1} color="black" />
-                </button>
-              </div>
-            </div>
-            }
-          </div>
-          <div className="w-full md:w-1/3 px-2 ">
-            <label
-              htmlFor="sender_address"
-              className="block mb-2 text-sm font-medium text-gray-700"
-            >
-              Propietario
-            </label>
-            <input
-              type="text"
-              id="sender_address"
-              value={data.user_name}
-              onChange={handleChange}
-              placeholder="Propietario"
-              className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              disabled
-            />
-          </div>
-          <div className="w-full md:w-1/3 px-2 ">
-            <label
-              htmlFor="branch_id"
-              className="block mb-2 text-sm font-medium text-gray-700"
-            >
-              <div className="flex items-center gap-2">
-                Dirección retiro
-                <button
-                  type="button"
-                  onClick={() => valitateBranch()}
-                  className="rounded-full"
-                >
-                  <Icon path={mdiPlusCircle} size={1} color="green" />
-                </button>
-              </div>
-            </label>
-            <select
-              id="branch_id"
-              value={data.branch_id}
-              onChange={(e) => handleChange(e)}
-              className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              required
-              disabled={disabled.branch_id}
-            >
-              <option value="">Selecciona una dirección</option>
-              {selectCompany.branches?.map((branche) => (
-                <option key={branche.id} value={branche.id}>
-                  {branche.name}
-                </option>
-              ))}
-            </select>
-
-          </div>
-          <div className="w-full md:w-1/4 px-2 ">
-            <DateFilter value={data.date} set={setSelectDate} label="Fecha de retiro"  disabled={disabled.date} />
-          </div>
-          <div className="w-full md:w-1/3 px-2 ">
-            <SelectHoursRange  value={data.hour} set={setSelectHours}   disabled={disabled.hour} labelText="Horario de retiro (8hs - 16hs)"/>
-          </div>
-          <div className="w-full md:w-1/3 px-2 ">
-            <label
-              htmlFor="sender_address"
-              className="block mb-2 text-sm font-medium text-gray-700"
-            >
-              Precio de envio
-            </label>
-            <input
-              type="text"
-              id="price"
-              value={data.price}
-              placeholder="Precio de envio"
-              className="mb-6 py-2 pl-3 pr-1  bg-gray-50 border border-gray-300 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full  cursor-not-allowed dark:bg-gray-200 dark:border-gray-400 dark:placeholder-gray-600 dark:text-black dark:focus:ring-blue-500 dark:focus:border-blue-500"
-              disabled={disabled.price}
-            />
-          </div>
-          <div className="w-full md:w-1/4 px-2 ">
-            <DateFilterDelivery  value={data.delivery_date}  disabled={disabled.delivery_date} set={setSelectDateDelivery} label="Fecha de entrega" />  
-          </div>
-          <div className="w-full md:w-1/3 px-2 ">
-            <SelectHoursRange value={data.delivery_hour} set={setSelectDeliveryHour} required={true} disabled={type == "get"} labelText="Horario de entrega (9hs - 18hs)" />
-          </div>
-          {type!="post" &&
-            <div className="w-full md:w-1/3 px-2 ">
-              <SelectCadete
-                  token={token}
-                  value={data.cadete_id}
-                  disabled={true}
-                 
-              />
-            </div>
-          }
-          <div className="w-full md:w-1/3 px-2 ">
-            <label htmlFor="company_email" className="block mb-2 text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
-              type="text"
-              id="company_email"
-              value={selectCompany.email}
-              placeholder="Email"
-              className="mb-6 py-2 pl-3 pr-1  bg-gray-50 border border-gray-300 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full  cursor-not-allowed dark:bg-gray-200 dark:border-gray-400 dark:placeholder-gray-600 dark:text-black dark:focus:ring-blue-500 dark:focus:border-blue-500"
-              disabled
-            />
-          </div>
-          {type!="post" &&
-          <div className="w-full md:w-1/3 px-2 ">
-            <label htmlFor="sender_address" className="block mb-2 text-sm font-medium text-gray-700">
-              Estado
-            </label>
-            <input
-              type="text"
-              id="status"
-              value={data.status}
-              placeholder="estado"
-              className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              disabled
-            />
-          </div>        
-          }
-          <div className="w-full md:w-1/3 px-2 ">
-            <label htmlFor="sender_address" className="block mb-2 text-sm font-medium text-gray-700">
-              Estado de pago
-            </label>
-            <select
-                id="payment_status"
-                value={data.payment_status}
-                onChange={handleChange}
-                disabled={disabled.payment_status}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                <option value="Pendiente">Pendiente</option>
-                <option value="Pagado">Pagado</option>
-            </select>
-          </div>
-        </div>
-          <h6 className="text-lg font-bold mb-4">Información del remitente</h6>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
-            <div className="mb-3">
-              <label
-                htmlFor="sender_city"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Ciudad
-              </label>
-              <input
-              type="text"
-              id="sender_city"
-              value={data.sender_city}
-              placeholder="Ciudad "
-              className="py-2 pl-3 pr-1  bg-gray-50 border border-gray-300 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full  cursor-not-allowed dark:bg-gray-200 dark:border-gray-400 dark:placeholder-gray-600 dark:text-black dark:focus:ring-blue-500 dark:focus:border-blue-500"
-              disabled
-              />
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="sender_neighborhood"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Barrio
-              </label>
-              <input
-              type="text"
-              id="sender_neighborhood"
-              value={data.sender_neighborhood}
-              placeholder="Barrio"
-              className=" py-2 pl-3 pr-1  bg-gray-50 border border-gray-300 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full  cursor-not-allowed dark:bg-gray-200 dark:border-gray-400 dark:placeholder-gray-600 dark:text-black dark:focus:ring-blue-500 dark:focus:border-blue-500"
-              disabled
-              />
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="sender_address"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Dirección
-              </label>
-              <input
-                type="text"
-                id="sender_address"
-                placeholder="Dirección"
-                value={data.sender_address}
-                className=" py-2 pl-3 pr-1  bg-gray-50 border border-gray-300 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full  cursor-not-allowed dark:bg-gray-200 dark:border-gray-400 dark:placeholder-gray-600 dark:text-black dark:focus:ring-blue-500 dark:focus:border-blue-500"
-                disabled
-                required
-              />
-            </div>
-            <div className="mb-3">
-            <label htmlFor="sender_phone" className="block mb-2 text-sm font-medium text-gray-700">Teléfono remitente</label>
-            <input type="text" id="sender_phone" value={data.sender_phone} disabled className="block w-full py-2 pl-3 pr-10 text-sm bg-gray-50 border border-gray-300 rounded-lg cursor-not-allowed" />
-          </div>
-          </div>
-
-          <h6 className="text-lg font-bold mb-4">Información del destinatario</h6>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4">
-            <div className="mb-3">
-              <label
-                htmlFor="recipient_city"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Ciudad 
-              </label>
-              <select
-                id="recipient_city"
-                value={data.recipient_city}
-                onChange={handleChange}
-                disabled={disabled.recipient_city}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                <option value="Canelones">Canelones</option>
-                <option value="Montevideo">Montevideo</option>
-              </select>
-            </div>
-            <div className="mb-3">
-             <SelectNeighborhood type="" disabled={disabled.recipient_neighborhood} value={data.recipient_neighborhood} token={token} city={data.recipient_city} set={setSelectNeighborhoodTemp}/>
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="recipient_address"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Dirección 
-              </label>
-              <input
-                type="text"
-                id="recipient_address"
-                value={data.recipient_address}
-                onChange={handleChange}
-                placeholder="Dirección"
-                disabled={disabled.recipient_address}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-              />
-            </div>
-            {type=="post" &&
-                        <div className="mb-3">
-                        <label
-                          htmlFor="recipient_apartment"
-                          className="block mb-2 text-sm font-medium text-gray-700"
-                        >
-                          Apartamento
-                        </label>
-                        <input
-                          type="text"
-                          id="recipient_apartment"
-                          placeholder="Apartamento"
-                          value={data.recipient_apartment}
-                          onChange={handleChange}
-                          className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"    
-                          required
-                        />
-                      </div>
-            }
-            <div className="mb-3">
-              <label
-                htmlFor="recipient_phone"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Nombre Destinatario
-              </label>
-              <input
-                type="text"
-                id="recipient_name"
-                value={data.recipient_name}
-                onChange={handleChange}
-                placeholder="Nombre completo"
-                disabled={disabled.recipient_name}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="recipient_phone"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-                Telefono
-              </label>
-              <input
-                type="text"
-                id="recipient_phone"
-                value={data.recipient_phone}
-                onChange={handleChange}
-                placeholder="Telefono"
-                className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-                disabled={disabled.recipient_phone}
-              />
-            </div>
-            <div className="mb-3">
-              <label
-                htmlFor="recipient_phone"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-               Quien Paga 
-              </label>
-              <select
-                id="who_pays"
-                value={data.who_pays}
-                onChange={handleChange}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-                disabled={disabled.who_pays}
-              >
-                <option value="Remitente">Remitente</option>
-                <option value="Destinatario">Destinatario</option>
-              </select>
-            </div>
-            <div className="mb-3 ">
-              <label
-                htmlFor="recipient_phone"
-                className="block mb-2 text-sm font-medium text-gray-700"
-              >
-              Notas 
-              </label>
-              <textarea id="notes" disabled={disabled.notes} value={data.notes} onChange={handleChange} className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400" placeholder=""></textarea>
-            </div>
-          </div>
-          <div className="mb-3">
-          <h6 className="mb-2 text-lg font-medium text-gray-700 flex items-center justify-center space-x-2">
-            <span>Detalle de paquete</span>
-            { type!="get" &&
-            <button
-              type="button"
-              onClick={addPackage}
-              className="p-2 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-green-300"
-            >
-              <Icon path={mdiPlusCircle} size={1} color="green" />
-            </button>
-            }
-          </h6>
-          {data.package_detail.map((item, index) => (
-            <div key={index} className="flex items-center mb-4">
-              <div className="flex w-full flex-wrap">
-                <div className="w-full md:w-2/5 mb-5 pr-2">
-                  <label
-                    htmlFor={`description_${index}`}
-                    className="block mb-2 text-sm font-medium text-gray-700"
-                  >
-                    Descripción
-                  </label>
-                  <input
-                    type="text"
-                    id={`description_${index}`}
-                    name="description"
-                    value={item.description}
-                    onChange={(e) => handlePackageChange(index, e)}
-                    className="shadow-sm bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full py-2 pl-3 pr-1"
-                    required
-                    disabled={type=="get"}
-                  />
-                </div>
-                <div className="w-full md:w-3/5 flex flex-wrap">
-                  <div className="mb-5 w-full sm:w-1/2 md:w-1/5 pr-2">
-                    <label
-                      htmlFor={`quantity_${index}`}
-                      className="block mb-2 text-sm font-medium text-gray-700"
-                    >
-                      Cantidad
-                    </label>
-                    <input
-                      type="number"
-                      id={`quantity_${index}`}
-                      name="quantity"
-                      value={item.quantity}
-                      onChange={(e) => handlePackageChange(index, e)}
-                      className="shadow-sm bg-white border border-gray-300 rounded-lg w-full py-1.5 pl-3 pr-1"
-                      required
-                      disabled={type=="get"}
-                    />
-                  </div>
-                  <div className="mb-5 w-full sm:w-1/2 md:w-1/5 pr-2">
-                    <label
-                      htmlFor={`weight_${index}`}
-                      className="block mb-2 text-sm font-medium text-gray-700"
-                    >
-                      Peso (kg)
-                    </label>
-                    <input
-                      type="number"
-                      id={`weight_${index}`}
-                      name="weight"
-                      value={item.weight}
-                      onChange={(e) => handlePackageChange(index, e)}
-                      className="shadow-sm bg-white border border-gray-300 rounded-lg w-full py-1.5 pl-3 pr-1"
-                      required
-                      disabled={type=="get"}
-                    />
-                  </div>
-                  <div className="mb-5 w-full sm:w-1/2 md:w-1/5 pr-2">
-                    <label
-                      htmlFor={`length_${index}`}
-                      className="block mb-2 text-sm font-medium text-gray-700"
-                    >
-                      Largo (cm)
-                    </label>
-                    <input
-                      type="number"
-                      id={`length_${index}`}
-                      name="length"
-                      value={item.dimensions.length}
-                      onChange={(e) => handlePackageChange(index, e)}
-                      className="shadow-sm bg-white border border-gray-300 rounded-lg w-full py-1.5 pl-3 pr-1"
-                      required
-                      disabled={type=="get"}
-                    />
-                  </div>
-                  <div className="mb-5 w-full sm:w-1/2 md:w-1/5 pr-2">
-                    <label
-                      htmlFor={`width_${index}`}
-                      className="block mb-2 text-sm font-medium text-gray-700"
-                    >
-                      Ancho (cm)
-                    </label>
-                    <input
-                      type="number"
-                      id={`width_${index}`}
-                      name="width"
-                      value={item.dimensions.width}
-                      onChange={(e) => handlePackageChange(index, e)}
-                      className="shadow-sm bg-white border border-gray-300 rounded-lg w-full py-1.5 pl-3 pr-1"
-                      required
-                      disabled={type=="get"}
-                    />
-                  </div>
-                  <div className="mb-5 w-full sm:w-1/2 md:w-1/5 pr-2">
-                    <label
-                      htmlFor={`height_${index}`}
-                      className="block mb-2 text-sm font-medium text-gray-700"
-                    >
-                      Alto (cm)
-                    </label>
-                    <input
-                      type="number"
-                      id={`height_${index}`}
-                      name="height"
-                      value={item.dimensions.height}
-                      onChange={(e) => handlePackageChange(index, e)}
-                      className="shadow-sm bg-white border border-gray-300 rounded-lg w-full py-1.5 pl-3 pr-1"
-                      required
-                      disabled={type=="get"}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-end justify-end">
-                {type!="get" &&
-                  <button
-                    type="button"
-                    onClick={() => removePackage(index)}
-                    className="p-3 bg-red-500 text-white rounded-full"
-                  >
-                    <Icon path={mdiDelete} size={1} />
-                  </button>
+          const hasCadeteId = normalized.cadete_id && String(normalized.cadete_id).trim() !== "";
+          if (hasCadeteId && (!normalized.cadete_name || String(normalized.cadete_name).trim() === "")) {
+            if (Users && typeof (Users as any).getById === "function") {
+              try {
+                const resp = await (Users as any).getById(normalized.cadete_id, token);
+                const r = resp?.data || resp;
+                const resolvedName =
+                  (r && (r.name || r.user_name || r.fullname || r.displayName)) ||
+                  r?.data?.name ||
+                  r?.data?.user_name ||
+                  "";
+                if (resolvedName) {
+                  normalized.cadete_name = resolvedName;
+                  normalized.cadete = normalized.cadete || {};
+                  normalized.cadete.name = normalized.cadete.name || resolvedName;
                 }
-              </div>
-            </div>
-          ))}
-          </div>
-          {type!="get" && 
-           <button
-           type="submit"
-           className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-           disabled={loading}
-         >
-           {loading ? "Guardando..." : btn}
-         </button>
-
+              } catch (err) {
+                // ignore per-user resolution errors
+              }
+            }
           }
-        </form>
+        } catch (e) {
+          // no rompemos si falla la resolución del cadete
+          console.warn("No se pudo resolver cadete por id:", e);
+        }
+
+        // --- resolver email del cliente si no vino en el payload ---
+        try {
+          const hasEmail = normalized.client_email && String(normalized.client_email).trim() !== "";
+          if (!hasEmail) {
+            // 1) tratar de obtener email desde campos directos ya presentes en raw
+            const possibleDirectEmails =
+              mid.client?.email ||
+              mid.customer?.email ||
+              mid.user?.email ||
+              mid.created_by?.email ||
+              mid.creator?.email ||
+              mid.contact_email ||
+              mid.email ||
+              mid.customer_email ||
+              "";
+            if (possibleDirectEmails && String(possibleDirectEmails).trim() !== "") {
+              normalized.client_email = possibleDirectEmails;
+            } else {
+              // 2) si no hay email directo, intentar resolver por userId(s)
+              const candidateIds = [
+                normalized.user_id,
+                mid.user_id,
+                mid.client_id,
+                mid.customer_id,
+                mid.created_by,
+                mid.creator_id,
+                mid.creator,
+                mid.user?.id,
+                mid.client?.id,
+                mid.customer?.id,
+              ].filter(Boolean);
+
+              let resolvedEmail = "";
+              if (candidateIds.length && Users && typeof (Users as any).getById === "function") {
+                for (const uid of candidateIds) {
+                  try {
+                    const resp = await (Users as any).getById(uid, token);
+                    const u = (resp && (resp.data || resp)) || resp;
+                    const cand =
+                      u?.email ||
+                      u?.email_address ||
+                      u?.contact_email ||
+                      u?.data?.email ||
+                      u?.user?.email ||
+                      u?.user?.email_address ||
+                      "";
+                    if (cand && String(cand).trim() !== "") {
+                      resolvedEmail = cand;
+                      break;
+                    }
+                  } catch (err) {
+                    /* ignore and continue to next id */
+                  }
+                }
+              }
+
+              // 3) fallback final a propiedades sueltas en mid
+              if (!resolvedEmail) {
+                resolvedEmail =
+                  mid.client?.email ||
+                  mid.customer?.email ||
+                  mid.user?.email ||
+                  mid.created_by?.email ||
+                  mid.creator?.email ||
+                  mid.email ||
+                  mid.customer_email ||
+                  "";
+              }
+
+              if (resolvedEmail && String(resolvedEmail).trim() !== "") {
+                normalized.client_email = resolvedEmail;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("No se pudo resolver client_email automáticamente:", err);
+        }
+        // --- end resolver email ---
+
+        setWb(normalized);
+      } catch (e: any) {
+        console.error("Error cargando guía:", e);
+        setWb(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, token]);
+
+  // Normalización flexible: acepta variantes en nombres de campos
+  function normalizeWaybill(raw: any): WaybillView {
+    const w = { ...(raw || {}) } as any;
+    // ID
+    w.id = raw.id || raw._id || raw.waybill_id || raw.id_waybill || raw.waybill?.id;
+
+    // cadete info
+    w.cadete_id =
+      raw.cadete_id ||
+      raw.rider_id ||
+      raw.cadete?.id ||
+      raw.rider?.id ||
+      raw.assignment?.cadete_id ||
+      raw.assigned_to ||
+      raw.assignment?.rider_id ||
+      "";
+    w.cadete_name =
+      raw.cadete_name ||
+      raw.rider_name ||
+      (raw.cadete && (raw.cadete.name || raw.cadete.user_name)) ||
+      raw.cadete?.name ||
+      raw.cadete?.user_name ||
+      raw.assignment?.cadete_name ||
+      raw.assigned_to_name ||
+      "";
+
+    // keep cadete object if exists
+    w.cadete = raw.cadete || raw.rider || raw.assignment?.cadete || w.cadete || {};
+
+    // dates / pickup
+    w.pickup_datetime =
+      raw.pickup_datetime || raw.pickup_date || raw.withdrawal_date || raw.withdrawal_at || raw.pickup_at || raw.pickup || "";
+    // also set explicit withdrawal_date (helps getWithdrawalDateForView)
+    w.withdrawal_date = raw.withdrawal_date || raw.withdrawal_at || raw.pickup_datetime || raw.pickup_date || raw.withdrawal || raw.pickup?.date || "";
+
+    // prefer explicit start/end if provided separately
+    w.pickup_start = raw.pickup_start || raw.pickup_hour_start || raw.pickup_time_start || raw.pickup_from || raw.pickup?.start || "";
+    w.pickup_end = raw.pickup_end || raw.pickup_hour_end || raw.pickup_time_end || raw.pickup_to || raw.pickup?.end || "";
+
+    w.delivery_date = raw.delivery_date || raw.delivery_at || raw.delivery_datetime || raw.deliver_at || raw.delivery || "";
+    w.delivery_start = raw.delivery_start || raw.delivery_hour_start || raw.delivery_time_start || "";
+    w.delivery_end = raw.delivery_end || raw.delivery_hour_end || raw.delivery_time_end || "";
+
+    // email cliente: más fallbacks
+    w.client_email =
+      raw.client_email ||
+      raw.company_email ||
+      raw.email ||
+      raw.customer_email ||
+      (raw.client && (raw.client.email || raw.client.contact_email)) ||
+      (raw.user && raw.user.email) ||
+      raw.created_by?.email ||
+      raw.customer?.email ||
+      raw.user_email ||
+      raw.contact_email ||
+      "";
+
+    // remitente (branch / sender)
+    const branch = raw.branch || raw.branch_data || raw.sender_branch || raw.origin || {};
+    const sender = raw.sender || raw.from || raw.origin || {};
+    w.sender = {
+      ...sender,
+      phone:
+        sender.phone ||
+        sender.telefono ||
+        raw.client_phone ||
+        raw.sender_phone ||
+        raw.phone ||
+        sender?.contact_phone ||
+        branch?.phone ||
+        raw.user_phone ||
+        "",
+      address: {
+        city:
+          sender.city ||
+          branch.city ||
+          sender.address?.city ||
+          sender.address?.locality ||
+          branch?.city ||
+          raw.origin_city ||
+          "",
+        neighborhood:
+          sender.neighborhood ||
+          branch.neighborhood ||
+          sender.address?.neighborhood ||
+          sender.address?.barrio ||
+          branch?.neighborhood ||
+          raw.origin_neighborhood ||
+          "",
+        street:
+          sender.address?.street ||
+          sender.address?.street_name ||
+          sender.address ||
+          branch.address ||
+          sender.street ||
+          raw.origin_street ||
+          "",
+        apartment: sender.address?.apartment || sender.apartment || branch.address?.apartment || sender.flat || "",
+      },
+    };
+
+    // destinatario: primer elemento de recipients / receiver / receivers
+    const recipientsArr = raw.recipients || raw.receiver || raw.receivers || raw.recipients_list || [];
+    const firstReceiver =
+      (Array.isArray(recipientsArr) && recipientsArr.length > 0 ? recipientsArr[0] : recipientsArr) ||
+      raw.receiver ||
+      raw.to ||
+      raw.recipient ||
+      {};
+    const receiverNormalized: Receiver = {
+      name:
+        firstReceiver.name ||
+        firstReceiver.recipient_name ||
+        firstReceiver.fullname ||
+        firstReceiver.to_name ||
+        firstReceiver.displayName ||
+        raw.to_name ||
+        "",
+      email:
+        firstReceiver.email ||
+        firstReceiver.recipient_email ||
+        firstReceiver.to_email ||
+        firstReceiver.contact_email ||
+        firstReceiver.email_address ||
+        firstReceiver.email ||
+        "",
+      phone:
+        firstReceiver.phone ||
+        firstReceiver.recipient_phone ||
+        firstReceiver.to_phone ||
+        firstReceiver.contact_phone ||
+        firstReceiver.telefono ||
+        "",
+      address: {
+        city: firstReceiver.city || firstReceiver.address?.city || firstReceiver.to_city || "",
+        neighborhood: firstReceiver.neighborhood || firstReceiver.address?.neighborhood || firstReceiver.barrio || "",
+        street: firstReceiver.address?.street || firstReceiver.address || firstReceiver.street || firstReceiver.to_address || "",
+        apartment: firstReceiver.apartment || firstReceiver.address?.apartment || firstReceiver.flat || "",
+      },
+    };
+    w.receiver = receiverNormalized;
+
+    // paquetes: varios nombres distintos posibles
+    if (Array.isArray(raw.packages)) {
+      w.packages = raw.packages;
+    } else if (Array.isArray(raw.items)) {
+      w.packages = raw.items;
+    } else if (Array.isArray(raw.package_details)) {
+      w.packages = raw.package_details;
+    } else if (Array.isArray(raw.package_detail)) {
+      w.packages = raw.package_detail;
+    } else if (raw.package_detail && typeof raw.package_detail === "object" && !Array.isArray(raw.package_detail)) {
+      w.package_detail = raw.package_detail;
+    } else {
+      w.packages = [];
+    }
+
+    // costo / quien paga / notas
+    w.shipping_cost = raw.shipping_cost ?? raw.price ?? raw.cost ?? raw.shippingPrice ?? raw.price_shipping ?? raw.shipping;
+    w.who_pays = raw.who_pays || raw.payment_by || raw.payer || raw.whoPays || w.who_pays || "";
+    w.notes = raw.notes || raw.observations || raw.comment || raw.note || "";
+
+    // fallbacks
+    if (!w.sender) w.sender = { phone: raw.sender_phone || raw.client_phone || "", address: {} };
+    if (!w.receiver) w.receiver = { name: "", phone: "", email: "", address: {} };
+
+    return w as WaybillView;
+  }
+
+  // Helper to safely read numeric-like fields
+  const fmtNum = (v: any) => {
+    if (v === null || typeof v === "undefined" || v === "") return "-";
+    if (typeof v === "number") return v;
+    const cleaned = String(v).replace(",", ".").trim();
+    if (cleaned === "") return "-";
+    return isNaN(Number(cleaned)) ? cleaned : Number(cleaned);
+  };
+
+  // paquetes array canonical
+  const packagesArray: PackageItem[] = Array.isArray(wb?.packages)
+    ? (wb!.packages as PackageItem[])
+    : Array.isArray((wb as any)?.items)
+    ? (wb as any).items
+    : Array.isArray((wb as any)?.package_details)
+    ? (wb as any).package_details
+    : Array.isArray((wb as any)?.package_detail)
+    ? (wb as any).package_detail
+    : [];
+
+  const packageFromDetailObject: PackageItem | null =
+    wb?.package_detail && !Array.isArray(wb.package_detail) && typeof wb.package_detail === "object" ? (wb.package_detail as PackageItem) : null;
+
+  function renderPackageRow(p: PackageItem, idx: number) {
+    const desc = p.description || p.desc || p.name || "-";
+    const qty = p.quantity ?? (p as any).qty ?? 1;
+    const weight = fmtNum(p.weight ?? p.peso ?? (p.dimensions && p.dimensions.weight));
+    const length = fmtNum(p.length ?? (p.dimensions && p.dimensions.length) ?? (p as any).largo ?? (p as any).length_cm);
+    const width = fmtNum(p.width ?? (p.dimensions && p.dimensions.width) ?? (p as any).ancho ?? (p as any).width_cm);
+    const height = fmtNum(p.height ?? (p.dimensions && p.dimensions.height) ?? (p as any).alto ?? (p as any).height_cm);
+
+    return (
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="py-2 px-3 bg-white rounded border">
+            <div className="text-xs text-gray-500">Descripción</div>
+            <div className="font-medium">{desc}</div>
+          </div>
+          <div className="py-2 px-3 bg-white rounded border">
+            <div className="text-xs text-gray-500">Cantidad</div>
+            <div className="font-medium">{String(qty)}</div>
+          </div>
+          <div className="py-2 px-3 bg-white rounded border">
+            <div className="text-xs text-gray-500">Peso (kg)</div>
+            <div className="font-medium">{weight === "-" ? "-" : `${weight}`}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="py-2 px-3 bg-white rounded border">
+            <div className="text-xs text-gray-500">Largo (cm)</div>
+            <div className="font-medium">{length === "-" ? "-" : `${length}`}</div>
+          </div>
+          <div className="py-2 px-3 bg-white rounded border">
+            <div className="text-xs text-gray-500">Ancho (cm)</div>
+            <div className="font-medium">{width === "-" ? "-" : `${width}`}</div>
+          </div>
+          <div className="py-2 px-3 bg-white rounded border">
+            <div className="text-xs text-gray-500">Alto (cm)</div>
+            <div className="font-medium">{height === "-" ? "-" : `${height}`}</div>
+          </div>
+        </div>
+
+        <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+          {Object.keys(p)
+            .filter((k) =>
+              ![
+                "id",
+                "description",
+                "desc",
+                "name",
+                "quantity",
+                "weight",
+                "length",
+                "width",
+                "height",
+                "value",
+                "fragile",
+                "dimensions",
+              ].includes(k)
+            )
+            .map((k) => renderKeyValue(k, (p as any)[k]))}
+        </div>
       </div>
     );
   }
+
+  // Computed view helpers: withdrawal/delivery dates
+  function getWithdrawalDateForView(w: WaybillView | null): string {
+    if (!w) return "-";
+    // 1) withdrawal_date explicit
+    const d1 = parseToDate(w.withdrawal_date);
+    if (d1) return dayjs(d1).format("DD/MM/YYYY");
+    // 2) try pickup_datetime extract
+    const d2 = extractDateFromPickupDatetime(w.pickup_datetime);
+    if (d2) return dayjs(d2).format("DD/MM/YYYY");
+    // 3) try pickup_start/date fields
+    const d3 = parseToDate((w as any).pickup_date || (w as any).pickup);
+    if (d3) return dayjs(d3).format("DD/MM/YYYY");
+    return "-";
+  }
+
+  const withdrawalDateFormatted = getWithdrawalDateForView(wb);
+  const deliveryDateFormatted = formatView(wb?.delivery_date || wb?.deliver_at || wb?.delivery_datetime || wb?.delivery);
+
+  // pickup hour: try start/end, else parse from pickup_datetime string if it contains times
+  function derivePickupHour(w: WaybillView | null) {
+    if (!w) return "-";
+    if (w.pickup_start && w.pickup_end) return `${w.pickup_start} - ${w.pickup_end}`;
+    if (w.pickup_datetime && typeof w.pickup_datetime === "string") {
+      // buscar pattern HH:mm
+      const matches = w.pickup_datetime.match(/(\d{1,2}:\d{2})/g);
+      if (matches && matches.length >= 2) return `${matches[0]} - ${matches[1]}`;
+      if (matches && matches.length === 1) return `${matches[0]}`;
+    }
+    return "-";
+  }
+  function deriveDeliveryHour(w: WaybillView | null) {
+    if (!w) return "-";
+    if (w.delivery_start && w.delivery_end) return `${w.delivery_start} - ${w.delivery_end}`;
+    if (w.delivery_hour && typeof w.delivery_hour === "string" && w.delivery_hour.trim()) return w.delivery_hour;
+    if (w.delivery_date && typeof w.delivery_date === "string") {
+      const matches = String(w.delivery_date).match(/(\d{1,2}:\d{2})/g);
+      if (matches && matches.length > 0) return matches.join(" - ");
+    }
+    return "-";
+  }
+
+  return (
+    <div className="block max-w-4xl p-8 bg-white border border-gray-300 rounded-lg shadow mx-auto">
+      <div className="flex items-center justify-between mb-4">
+        <h5 className="text-3xl font-bold tracking-tight text-gray-800">{title}</h5>
+        <button
+          type="button"
+          title="Volver"
+          onClick={() => navigate(-1)}
+          className="text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-sm px-3 py-2"
+        >
+          <Icon path={mdiArrowLeft} size={1} />
+        </button>
+      </div>
+
+      {loading && <p className="text-gray-600">Cargando...</p>}
+
+      {!loading && !wb && <p className="text-red-600">No se encontró la guía o hubo un error al cargarla. Revisá consola.</p>}
+
+      {!loading && wb && (
+        <>
+          {/* Cadete asignado */}
+          <div className="py-3 px-4 bg-gray-100 rounded mb-4 w-full">
+            <div className="text-xs text-gray-500">Cadete asignado</div>
+            <div className="font-semibold text-lg">
+              {wb.cadete_name ||
+                (wb.cadete && (wb.cadete.name || wb.cadete.user_name)) ||
+                (wb.cadete_id ? `#${String(wb.cadete_id).substring(0, 6)}...` : "No asignado")}
+            </div>
+          </div>
+
+          {/* Fechas y horarios */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div className="py-2 px-3 bg-gray-100 rounded">
+              <div className="text-xs text-gray-500">Fecha de retiro</div>
+              <div className="font-semibold">{withdrawalDateFormatted}</div>
+            </div>
+            <div className="py-2 px-3 bg-gray-100 rounded">
+              <div className="text-xs text-gray-500">Horario de retiro</div>
+              <div className="font-semibold">{derivePickupHour(wb)}</div>
+            </div>
+
+            <div className="py-2 px-3 bg-gray-100 rounded">
+              <div className="text-xs text-gray-500">Fecha de entrega</div>
+              <div className="font-semibold">{deliveryDateFormatted}</div>
+            </div>
+            <div className="py-2 px-3 bg-gray-100 rounded">
+              <div className="text-xs text-gray-500">Horario de entrega</div>
+              <div className="font-semibold">{deriveDeliveryHour(wb)}</div>
+            </div>
+          </div>
+
+          {/* Correo cliente / quien paga / precio */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+            <div className="py-2 px-3 bg-gray-100 rounded">
+              <div className="text-xs text-gray-500">Quién Paga</div>
+              <div className="font-semibold">{wb.who_pays || "-"}</div>
+            </div>
+            <div className="py-2 px-3 bg-gray-100 rounded">
+              <div className="text-xs text-gray-500">Precio</div>
+              <div className="font-semibold">
+                {typeof wb.shipping_cost === "number" ? wb.shipping_cost : wb.shipping_cost ?? "-"}
+              </div>
+            </div>
+          </div>
+
+          {/* Remitente (orden solicitado) */}
+          <div className="border-t border-gray-200 pt-4">
+            <h6 className="text-lg font-bold mb-3">Información del remitente</h6>
+
+            {/* Primera fila: Ciudad - Barrio - Dirección */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="py-2 px-3 bg-gray-100 rounded">
+                <div className="text-xs text-gray-500">Ciudad</div>
+                <div className="font-semibold">{wb.sender?.address?.city || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-gray-100 rounded">
+                <div className="text-xs text-gray-500">Barrio</div>
+                <div className="font-semibold">{wb.sender?.address?.neighborhood || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-gray-100 rounded">
+                <div className="text-xs text-gray-500">Dirección</div>
+                <div className="font-semibold">{wb.sender?.address?.street || "-"}</div>
+              </div>
+            </div>
+
+            {/* Segunda fila: Apartamento - Teléfono - Email remitente */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+              <div className="py-2 px-3 bg-gray-100 rounded">
+                <div className="text-xs text-gray-500">Teléfono</div>
+                <div className="font-semibold">{wb.sender?.phone || wb.sender?.contact_phone || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-gray-100 rounded">
+                <div className="text-xs text-gray-500">Email (empresa/cliente)</div>
+                <div className="font-semibold">{wb.client_email || wb.company_email || "-"}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Destinatario */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h6 className="text-lg font-bold mb-3">Información del destinatario</h6>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="py-2 px-3 bg-white rounded border">
+                <div className="text-xs text-gray-500">Ciudad</div>
+                <div className="font-semibold">{wb.receiver?.address?.city || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-white rounded border">
+                <div className="text-xs text-gray-500">Barrio</div>
+                <div className="font-semibold">{wb.receiver?.address?.neighborhood || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-white rounded border">
+                <div className="text-xs text-gray-500">Dirección</div>
+                <div className="font-semibold">{wb.receiver?.address?.street || "-"}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+              <div className="py-2 px-3 bg-white rounded border">
+                <div className="text-xs text-gray-500">Apartamento</div>
+                <div className="font-semibold">{wb.receiver?.address?.apartment || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-white rounded border">
+                <div className="text-xs text-gray-500">Nombre Destinatario</div>
+                <div className="font-semibold">{wb.receiver?.name || "-"}</div>
+              </div>
+              <div className="py-2 px-3 bg-white rounded border">
+                <div className="text-xs text-gray-500">Teléfono</div>
+                <div className="font-semibold">{wb.receiver?.phone || "-"}</div>
+              </div>
+            </div>
+
+            <div className="py-2 px-3 bg-white rounded border mt-3">
+              <div className="text-xs text-gray-500">Notas</div>
+              <div className="font-semibold">{(wb.notes || "").trim() || "-"}</div>
+            </div>
+          </div>
+
+          {/* Detalle de paquete */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h6 className="text-lg font-bold mb-3">Detalle del paquete</h6>
+
+            {packageFromDetailObject ? (
+              <div className="p-3 bg-gray-50 border rounded">{renderPackageRow(packageFromDetailObject, 1)}</div>
+            ) : Array.isArray(packagesArray) && packagesArray.length > 0 ? (
+              <div className="space-y-4">
+                {packagesArray.map((p: PackageItem, idx: number) => (
+                  <div key={p.id || idx} className="p-3 bg-gray-50 border rounded">
+                    <div className="mb-2 font-semibold">Paquete #{idx + 1}</div>
+                    {renderPackageRow(p, idx + 1)}
+                  </div>
+                ))}
+              </div>
+            ) : wb?.package_detail && typeof wb.package_detail === "object" ? (
+              <div className="p-3 bg-gray-50 border rounded">{renderPackageRow(wb.package_detail as PackageItem, 1)}</div>
+            ) : (
+              <div className="text-sm text-gray-500">No hay detalles de paquete registrados.</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

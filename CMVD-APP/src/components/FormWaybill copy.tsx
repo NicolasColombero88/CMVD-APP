@@ -218,6 +218,7 @@ export default function FormWaybill({ type = "get" }) {
             </label>
             <select
               id="recipient_city"
+name="recipient_city"
               value={data.recipient_city}
               onChange={handleChange}
               className="shadow-sm bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3"
@@ -236,6 +237,7 @@ export default function FormWaybill({ type = "get" }) {
             </label>
             <select
               id="recipient_neighborhood"
+  name="recipient_neighborhood"
               value={data.recipient_neighborhood}
               onChange={handleChange}
               className="shadow-sm bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3"

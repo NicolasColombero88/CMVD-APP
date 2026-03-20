@@ -95,6 +95,7 @@ type UpdateWaybill struct {
 	WaybillNumber      string              `json:"waybill_number" bson:"waybill_number"`
 	PickupDatetime     string              `json:"pickup_datetime" bson:"pickup_datetime"`
 	ShipmentDate       time.Time           `json:"shipment_date" bson:"shipment_date"`
+	WithdrawalDate     time.Time           `json:"withdrawal_date" bson:"withdrawal_date"`
 	Sender             Contact             `json:"sender" bson:"sender"`
 	Receiver           Contact             `json:"receiver" bson:"receiver"`
 	PackageDetails     []PackageDetail     `json:"package_details" bson:"package_details"`

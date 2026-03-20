@@ -49,6 +49,8 @@ const formatDataForExcel = (json,userMap) => {
     "Fecha de Entrega": json.delivery_date && json.delivery_hour
     ? `${formatDateOnly(json.delivery_date)} ${json.delivery_hour}`
     : "",
+     "Notas": json.notes || "",
+    "Notas de entrega": json.delivery_notes || "",
     "Precio": json.shipping_cost || "",
     //"Estado": json.status || "",
     /*"Fecha de Creación": json.created_at

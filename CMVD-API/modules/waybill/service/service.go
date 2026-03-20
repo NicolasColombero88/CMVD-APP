@@ -15,38 +15,95 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-var company = companySv.NewCompanyService()
+// Servicio de compañías
+var companyService = companySv.NewCompanyService()
 
 type CreateWaybillHook func(waybill *domain.Waybill, tokenClaims interface{}) error
 
 var createWaybillHooks []CreateWaybillHook
 
+// -----------------------------------------------------------------------------
+// Helpers de fecha (sólidos para PUT/POST)
+// -----------------------------------------------------------------------------
+
+// parseToStartOfDayFlexible intenta varias entradas comunes:
+//   - "2006-01-02"
+//   - "02-01-2006"
+//   - RFC3339 completo
+//   - "2006-01-02 15:04" (solo toma la fecha)
+//
+// Devuelve siempre el inicio del día en UTC.
+func parseToStartOfDayFlexible(s string, loc *time.Location) (time.Time, error) {
+	val := strings.TrimSpace(s)
+	if val == "" {
+		return time.Time{}, fmt.Errorf("empty")
+	}
+
+	// YYYY-MM-DD
+	if t, err := time.ParseInLocation("2006-01-02", val, loc); err == nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc).UTC(), nil
+	}
+
+	// DD-MM-YYYY
+	if t, err := time.ParseInLocation("02-01-2006", val, loc); err == nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc).UTC(), nil
+	}
+
+	// YYYY-MM-DD HH:mm (descartamos hora, solo fecha)
+	if t, err := time.ParseInLocation("2006-01-02 15:04", val, loc); err == nil {
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc).UTC(), nil
+	}
+
+	// RFC3339 (con o sin milisegundos)
+	if t, err := time.Parse(time.RFC3339, val); err == nil {
+		t = t.In(loc)
+		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc).UTC(), nil
+	}
+
+	return time.Time{}, fmt.Errorf("invalid date: %q", s)
+}
+
+// toStartOfDayUTC lleva un time.Time cualquiera al inicio de día local y lo pasa a UTC.
+func toStartOfDayUTC(t time.Time) time.Time {
+	if t.IsZero() {
+		return t
+	}
+	loc := time.Now().Location()
+	local := t.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc).UTC()
+}
+
+// -----------------------------------------------------------------------------
+// Límite diario por compañía
+// -----------------------------------------------------------------------------
+
 // checkDailyLimit lanza error si ya se alcanzó el máximo del día
 func (s *WaybillServiceImpl) checkDailyLimit(companyID primitive.ObjectID, date time.Time) error {
-	// 1) Calculamos inicio de día
+	// Inicio de día en la zona local del sistema
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	dateKey := start.Format("2006-01-02")
+
 	count, err := s.userRepository.GetCountDailyShipments(companyID, dateKey)
 	if err != nil {
 		return fmt.Errorf("falló conteo diario: %w", err)
 	}
+
 	// Día en mayúsculas: MONDAY, TUESDAY, ...
 	day := strings.ToUpper(start.Weekday().String())
 	maxEnvios, err := strconv.Atoi(os.Getenv("MAX_DAILY_SHIPMENTS_" + day))
 	if err != nil {
 		return fmt.Errorf("configuración inválida para %s: %w", day, err)
 	}
+
 	if count >= int64(maxEnvios) {
 		return fmt.Errorf("límite diario (%d) alcanzado para %s", maxEnvios, day)
 	}
 	return nil
 }
 
-// timeMustParse es helper para parsear sin propagar error
-/*func timeMustParse(dateStr string) time.Time {
-	t, _ := time.Parse("2006-01-02", dateStr)
-	return t
-}*/
+// -----------------------------------------------------------------------------
+// Servicio
+// -----------------------------------------------------------------------------
 
 func AddCreateWaybillHook(hook CreateWaybillHook) {
 	createWaybillHooks = append(createWaybillHooks, hook)
@@ -66,15 +123,22 @@ func NewWaybillService() domain.WaybillService {
 		userRepository: repo,
 	}
 }
+
+// -----------------------------------------------------------------------------
+// Create
+// -----------------------------------------------------------------------------
+
 func (s *WaybillServiceImpl) CreateWaybill(waybill domain.Waybill, tokenClaims interface{}) (primitive.ObjectID, error) {
 	claims, ok := tokenClaims.(map[string]interface{})
 	if !ok {
 		return primitive.NilObjectID, errors.New("invalid tokenClaims format")
 	}
+
 	userRole, ok := claims["role"].(string)
 	if !ok {
 		return primitive.NilObjectID, errors.New("userRole not found in tokenClaims")
 	}
+
 	var companyId primitive.ObjectID
 	if userRole == "Cliente" {
 		companyIdHex, ok := claims["companyId"].(string)
@@ -86,7 +150,7 @@ func (s *WaybillServiceImpl) CreateWaybill(waybill domain.Waybill, tokenClaims i
 		if err != nil {
 			return primitive.NilObjectID, fmt.Errorf("invalid companyId format: %w", err)
 		}
-		log.Printf("Error companyId========: %v", companyId)
+		log.Printf("CreateWaybill: companyId (Cliente) = %v", companyId)
 	} else {
 		if waybill.CompanyId.IsZero() {
 			return primitive.NilObjectID, errors.New("waybill.CompanyId is not set")
@@ -94,12 +158,14 @@ func (s *WaybillServiceImpl) CreateWaybill(waybill domain.Waybill, tokenClaims i
 		companyId = waybill.CompanyId
 	}
 
-	company, err := company.GetCompany(companyId.Hex(), tokenClaims)
+	// Traer datos de la compañía
+	companyDoc, err := companyService.GetCompany(companyId.Hex(), tokenClaims)
 	if err != nil {
 		return primitive.NilObjectID, fmt.Errorf("error fetching company: %w", err)
 	}
 
-	branchDocument, err := domain.CreateNewWaybill(waybill, companyId, company)
+	// Armar documento de guía desde dominio
+	branchDocument, err := domain.CreateNewWaybill(waybill, companyId, companyDoc)
 	if err != nil {
 		return primitive.NilObjectID, fmt.Errorf("error creating waybill document: %w", err)
 	}
@@ -109,37 +175,35 @@ func (s *WaybillServiceImpl) CreateWaybill(waybill domain.Waybill, tokenClaims i
 		return primitive.NilObjectID, err
 	}
 
-	// 1) Validar que la fecha de delivery no sea anterior a la de pickup
+	// La fecha de entrega no puede ser anterior a la de retiro
 	if branchDocument.DeliveryDate.Before(branchDocument.WithdrawalDate) {
 		return primitive.NilObjectID, errors.New("la fecha de delivery no puede ser anterior a la de pickup")
 	}
 
-	// 2) Validar límite diario para la fecha de RETIRO
-	if err := s.checkDailyLimit(companyId, branchDocument.WithdrawalDate); err != nil {
-		return primitive.NilObjectID, err
-	}
-	// 3) Validar límite diario para la fecha de ENTREGA
+	// Validar límite diario para la fecha de entrega
 	if err := s.checkDailyLimit(companyId, branchDocument.DeliveryDate); err != nil {
-
 		return primitive.NilObjectID, err
 	}
 
-	err = s.userRepository.InsertWaybill(branchDocument)
+	// Insertar en BD
+	if err := s.userRepository.InsertWaybill(branchDocument); err != nil {
+		return primitive.NilObjectID, fmt.Errorf("error al insertar la waybill: %w", err)
+	}
 
+	// Ejecutar hooks (no bloqueantes)
 	var hookErrors []error
 	for _, hook := range createWaybillHooks {
-		if err := hook(branchDocument, tokenClaims); err != nil {
-			hookErrors = append(hookErrors, err)
+		if hookErr := hook(branchDocument, tokenClaims); hookErr != nil {
+			hookErrors = append(hookErrors, hookErr)
 		}
 	}
-
 	if len(hookErrors) > 0 {
 		for _, hookErr := range hookErrors {
 			log.Printf("Error in CreateWaybill hook: %v", hookErr)
 		}
 	}
 
-	// Enviar correo de confirmación al cliente
+	// Enviar correo de confirmación al cliente (no bloqueante)
 	if err := s.userRepository.Email(
 		branchDocument.Sender.Email,
 		branchDocument.Sender.Name,
@@ -151,6 +215,11 @@ func (s *WaybillServiceImpl) CreateWaybill(waybill domain.Waybill, tokenClaims i
 
 	return branchDocument.ID, nil
 }
+
+// -----------------------------------------------------------------------------
+// Listado
+// -----------------------------------------------------------------------------
+
 func (s *WaybillServiceImpl) GetAllWaybill(
 	tokenClaims interface{},
 	status string,
@@ -167,6 +236,7 @@ func (s *WaybillServiceImpl) GetAllWaybill(
 	if !ok {
 		return nil, 0, 0, errors.New("userRol not found in tokenClaims")
 	}
+
 	if userRol == "Cliente" {
 		companyIdStr, ok := tokenClaims.(map[string]interface{})["companyId"].(string)
 		if !ok {
@@ -179,42 +249,54 @@ func (s *WaybillServiceImpl) GetAllWaybill(
 		}
 
 		return s.userRepository.GetAllWaybill(companyId, status, search, withdrawalAfter, withdrawalBefore, deliveryAfter, deliveryBefore, page, limit)
-	} else {
-		userId, ok := tokenClaims.(map[string]interface{})["id"].(string)
-		if !ok {
-			return nil, 0, 0, errors.New("userId not found in tokenClaims")
-		}
-
-		if cadeteId != "" {
-			userRol = "Cadete"
-			userId = cadeteId
-		}
-
-		return s.userRepository.GetAllWaybillAdmin(status, search, userId, userRol, withdrawalAfter, withdrawalBefore, deliveryAfter, deliveryBefore, page, limit)
 	}
+
+	userId, ok := tokenClaims.(map[string]interface{})["id"].(string)
+	if !ok {
+		return nil, 0, 0, errors.New("userId not found in tokenClaims")
+	}
+
+	// Si filtran por cadeteId, forzamos el rol
+	if cadeteId != "" {
+		userRol = "Cadete"
+		userId = cadeteId
+	}
+
+	return s.userRepository.GetAllWaybillAdmin(status, search, userId, userRol, withdrawalAfter, withdrawalBefore, deliveryAfter, deliveryBefore, page, limit)
 }
+
+// -----------------------------------------------------------------------------
+// Get
+// -----------------------------------------------------------------------------
 
 func (s *WaybillServiceImpl) GetWaybill(waybillID string, tokenClaims interface{}) (domain.Waybill, error) {
 	userRol, ok := tokenClaims.(map[string]interface{})["role"].(string)
 	if !ok {
 		return domain.Waybill{}, errors.New("userRol not found in tokenClaims")
 	}
+
 	fmt.Println("WaybillServiceImpl GetWaybill: 1")
 	waybillObjID, err := primitive.ObjectIDFromHex(waybillID)
 	if err != nil {
 		return domain.Waybill{}, err
 	}
 	fmt.Println("WaybillServiceImpl GetWaybill: 1")
+
 	if userRol == "Admin" {
 		companyIdStr, ok := tokenClaims.(map[string]interface{})["companyId"].(string)
 		if !ok {
 			return domain.Waybill{}, errors.New("companyId not found in tokenClaims")
 		}
 		return s.userRepository.GetWaybill(companyIdStr, waybillObjID)
-	} else {
-		return s.userRepository.GetWaybill("", waybillObjID)
 	}
+
+	return s.userRepository.GetWaybill("", waybillObjID)
 }
+
+// -----------------------------------------------------------------------------
+// Update  (fix: siempre actualiza WithdrawalDate correctamente)
+// -----------------------------------------------------------------------------
+
 func (s *WaybillServiceImpl) UpdateWaybill(waybillID string, waybill domain.UpdateWaybill, tokenClaims interface{}) error {
 	waybillObjID, err := primitive.ObjectIDFromHex(waybillID)
 	if err != nil {
@@ -231,45 +313,86 @@ func (s *WaybillServiceImpl) UpdateWaybill(waybillID string, waybill domain.Upda
 		return errors.New("userRole not found in tokenClaims")
 	}
 
+	// Determinar companyId
 	var companyId primitive.ObjectID
 	if userRole == "Admin" {
 		companyIdStr, ok := claimsMap["companyId"].(string)
 		if !ok {
 			return errors.New("companyId not found in tokenClaims")
 		}
-
 		companyId, err = primitive.ObjectIDFromHex(companyIdStr)
 		if err != nil {
 			return fmt.Errorf("invalid companyId in tokenClaims: %w", err)
 		}
 	} else {
-		// Usar el CompanyId del objeto waybill
 		companyId = waybill.CompanyId
 	}
 
-	// Convertir companyId de ObjectID a string
-	companyIdStr := companyId.Hex()
-
-	// Obtener los datos de la compañía
-	companyData, err := company.GetCompany(companyIdStr, tokenClaims) // Ahora se pasa como string
+	// Traer datos de la compañía
+	companyData, err := companyService.GetCompany(companyId.Hex(), tokenClaims)
 	if err != nil {
 		return fmt.Errorf("failed to get company data: %w", err)
 	}
 
-	// Actualizar los datos de la guía de envío
+	// Generar struct de actualización según dominio (struct tipado, no map)
 	waybillData, err := domain.UpdateWaybillWithInput(waybill, companyData)
 	if err != nil {
 		return fmt.Errorf("failed to transform waybill data: %w", err)
 	}
-
-	// Guardar los cambios en el repositorio
-	err = s.userRepository.UpdateWaybill(waybillObjID, waybillData)
-	if err != nil {
-		return fmt.Errorf("failed to update waybill: %w", err)
+	if waybillData == nil {
+		return errors.New("domain.UpdateWaybillWithInput devolvió nil")
 	}
 
+	// --------- Normalización robusta de fechas ---------
+	loc := time.Now().Location()
+
+	// a) Si vino pickup_datetime, recalculamos WithdrawalDate desde ahí (soporta YYYY-MM-DD / DD-MM-YYYY / RFC3339 / YYYY-MM-DD HH:mm)
+	if strings.TrimSpace(waybill.PickupDatetime) != "" {
+		if t, err := parseToStartOfDayFlexible(waybill.PickupDatetime, loc); err == nil {
+			waybillData.WithdrawalDate = t
+		} else {
+			fmt.Printf("WARN UpdateWaybill: pickup_datetime inválido (%s): %v\n", waybill.PickupDatetime, err)
+		}
+		// Aseguramos que se persista el texto si el dominio no lo dejó
+		if strings.TrimSpace(waybillData.PickupDatetime) == "" {
+			waybillData.PickupDatetime = waybill.PickupDatetime
+		}
+	}
+
+	// b) Si NO vino pickup_datetime pero sí WithdrawalDate (en el payload), normalizamos a inicio de día
+	if waybillData.WithdrawalDate.IsZero() && !waybill.WithdrawalDate.IsZero() {
+		waybillData.WithdrawalDate = toStartOfDayUTC(waybill.WithdrawalDate)
+	}
+
+	// c) DeliveryDate + DeliveryHour (si corresponde). Si entra solo la fecha, la dejamos a 00:00 UTC
+	if !waybill.DeliveryDate.IsZero() {
+		if strings.TrimSpace(waybill.DeliveryHour) != "" {
+			if hhmm, err := time.Parse("15:04", waybill.DeliveryHour); err == nil {
+				dl := waybill.DeliveryDate.In(loc)
+				combined := time.Date(dl.Year(), dl.Month(), dl.Day(), hhmm.Hour(), hhmm.Minute(), 0, 0, loc)
+				waybillData.DeliveryDate = combined.UTC()
+			} else {
+				// si la hora vino inválida, guardamos la fecha al inicio del día
+				waybillData.DeliveryDate = toStartOfDayUTC(waybill.DeliveryDate)
+			}
+		} else {
+			waybillData.DeliveryDate = toStartOfDayUTC(waybill.DeliveryDate)
+		}
+	}
+
+	// d) updated_at siempre
+	waybillData.UpdatedAt = time.Now().UTC()
+
+	// Guardar
+	if err := s.userRepository.UpdateWaybill(waybillObjID, waybillData); err != nil {
+		return fmt.Errorf("failed to update waybill: %w", err)
+	}
 	return nil
 }
+
+// -----------------------------------------------------------------------------
+// Status History
+// -----------------------------------------------------------------------------
 
 func (s *WaybillServiceImpl) CreateStatusHistory(
 	waybillID string,
@@ -311,66 +434,57 @@ func (s *WaybillServiceImpl) CreateStatusHistory(
 		return fmt.Errorf("error updating waybill status: %v", err)
 	}
 
-	// 4. Recuperar guía para obtener datos de la compañía/usuario (comentado)
-	// waybillT, err := s.userRepository.GetWaybill("", waybillObjID)
-	// if err != nil {
-	//     return fmt.Errorf("Error al obtener guía: %v", err)
-	// }
-
-	// 5. Recuperar datos del usuario para email (comentado)
-	// user, err := s.userRepository.GetCompany(waybillT.CompanyId)
-	// if err != nil {
-	//     return fmt.Errorf("error al obtener el usuario: %v", err)
-	// }
-
-	// 6. Generar contenido HTML para el correo (comentado)
-	// htmlContent := fmt.Sprintf(
-	//     "<html><head></head><body><p>La guía %s cambió al estado: <b>%s</b>.</p><p>Revisa la plataforma para más detalles.</p></body></html>",
-	//     waybillID,
-	//     statusHistory.Status,
-	// )
-
-	// 7. Enviar correo al usuario (comentado)
-	// if err := s.userRepository.Email(user.Email, user.Name, "Cambio de estado de Envío", htmlContent); err != nil {
-	//     fmt.Printf("Error al enviar el correo: %v\n", err)
-	// }
-
-	// 8. Guardar el historial de cambios de estado en BD
+	// 4. Guardar historial
 	return s.userRepository.InsertStatusHistory(waybillObjID, *statusHistoryObj)
 }
 
-func (s *WaybillServiceImpl) CreatePayment(waybillID string, payment domain.Payment, tokenClaims interface{}) (primitive.ObjectID, error) {
+// -----------------------------------------------------------------------------
+// Payment
+// -----------------------------------------------------------------------------
 
+func (s *WaybillServiceImpl) CreatePayment(waybillID string, payment domain.Payment, tokenClaims interface{}) (primitive.ObjectID, error) {
 	waybillObjID, err := primitive.ObjectIDFromHex(waybillID)
 	if err != nil {
 		return primitive.NilObjectID, err
 	}
-	_, err = s.GetWaybill(waybillID, tokenClaims)
-	if err != nil {
+
+	// Validar que exista la guía y que el usuario tenga acceso
+	if _, err := s.GetWaybill(waybillID, tokenClaims); err != nil {
 		return primitive.NilObjectID, fmt.Errorf("error al obtener la waybill: %v", err)
 	}
+
 	waybillDocument, err := domain.CreatePayment(payment)
 	if err != nil {
 		return primitive.NilObjectID, err
 	}
-	err = s.userRepository.UpdateWaybill(waybillObjID, waybillDocument)
-	if err != nil {
+
+	if err := s.userRepository.UpdateWaybill(waybillObjID, waybillDocument); err != nil {
 		return primitive.NilObjectID, fmt.Errorf("error al actualizar la waybill: %v", err)
 	}
+
 	return waybillObjID, nil
 }
+
+// -----------------------------------------------------------------------------
+// Delete
+// -----------------------------------------------------------------------------
+
 func (s *WaybillServiceImpl) DeleteWaybill(waybillID string, tokenClaims interface{}) error {
 	waybillObjID, err := primitive.ObjectIDFromHex(waybillID)
 	if err != nil {
 		return err
 	}
 
-	err = s.userRepository.DeleteWaybill(waybillObjID) // Se usa la variable err ya declarada
-	if err != nil {
+	if err := s.userRepository.DeleteWaybill(waybillObjID); err != nil {
 		return err
 	}
 	return nil
 }
+
+// -----------------------------------------------------------------------------
+// Update Cadete
+// -----------------------------------------------------------------------------
+
 func (s *WaybillServiceImpl) UpdateCadete(waybillID string, waybill domain.Cadete, tokenClaims interface{}) error {
 	waybillObjID, err := primitive.ObjectIDFromHex(waybillID)
 	if err != nil {
@@ -391,32 +505,45 @@ func (s *WaybillServiceImpl) UpdateCadete(waybillID string, waybill domain.Cadet
 		return errors.New("permission denied: user does not have the required role")
 	}
 
+	// Obtener la guía actual
 	waybillIn, err := s.userRepository.GetWaybill("", waybillObjID)
 	if err != nil {
 		return fmt.Errorf("error getting waybill: %w", err)
 	}
 
-	waybillData := domain.SetCadete(waybill, waybillIn.Status)
-	log.Printf("waybillData after setting cadete: %v", waybillData)
+	// Sobrescribir el campo CadeteId con el nuevo
+	waybillIn.CadeteId = waybill.CadeteId
+	waybillIn.UpdatedAt = time.Now().UTC()
 
-	err = s.userRepository.UpdateWaybill(waybillObjID, waybillData)
-	if err != nil {
-		return fmt.Errorf("failed to update waybill: %w", err)
+	// Guardar los cambios en BD
+	if err := s.userRepository.UpdateWaybill(waybillObjID, &waybillIn); err != nil {
+		return fmt.Errorf("failed to update cadete assignment: %w", err)
 	}
 
+	// Obtener datos del usuario/cadete para notificarlo
 	user, err := s.userRepository.GetUserByID(waybill.CadeteId)
 	if err != nil {
 		return fmt.Errorf("error retrieving cadete user: %w", err)
 	}
 
-	htmlContent := fmt.Sprintf("<html><head></head><body><p>El Envio #%s,</p><p>Se te asignó un nuevo envío, revisa la plataforma.</p></body></html>", waybillID)
-	err = s.userRepository.Email(user.Email, user.Name, "Asignación de Envío", htmlContent)
-	if err != nil {
-		fmt.Printf("Error sending email: %v\n", err)
+	htmlContent := fmt.Sprintf(`
+		<html><head></head><body>
+		<p>Se te ha asignado una nueva guía de envío (#%s).</p>
+		<p>Por favor, revisá tu panel para más detalles.</p>
+		</body></html>
+	`, waybillID)
+
+	if err := s.userRepository.Email(user.Email, user.Name, "Nueva asignación de envío", htmlContent); err != nil {
+		log.Printf("Error al enviar correo de asignación: %v\n", err)
 	}
 
 	return nil
 }
+
+// -----------------------------------------------------------------------------
+// Métricas
+// -----------------------------------------------------------------------------
+
 func (s *WaybillServiceImpl) GetCountWithdrawalDate(fechaminimaStr string) ([]map[string]interface{}, error) {
 	return s.userRepository.GetCountWithdrawalDate(fechaminimaStr)
 }

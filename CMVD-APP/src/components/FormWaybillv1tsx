@@ -11,7 +11,9 @@
   import SelectNeighborhood from './SelectNeighborhood';
   import ButtonStatus from './ButtonStatus';
   import SelectHours from './SelectHours';
-  import SelectCadete from '@/components/SelectCadete';
+  import SelectCadete from './SelectCadete';
+  import SelectCity from "./SelectCity";
+
   export default function FormWaybill({ type = "get" }) {
     const [loading, setLoading] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
@@ -561,19 +563,34 @@
               >
                 Ciudad 
               </label>
-              <select
-                id="recipient_city"
-                value={data.recipient_city}
-                onChange={handleChange}
-                disabled={disabled.recipient_city}
-                className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              >
-                <option value="Canelones">Canelones</option>
-                <option value="Montevideo">Montevideo</option>
-              </select>
+               <SelectCity
+  id="recipient_city"
+  name="recipient_city"
+  token={token}
+  value={data.recipient_city || ""}
+  disabled={type === "get"}
+  set={(v) =>
+    setData((prev:any) => ({
+      ...prev,
+      recipient_city: v,
+      recipient_neighborhood: "",  // obliga a elegir barrio válido
+    }))
+  }
+  onChange={handleChange}          // ← esto dispara el cálculo
+/>
             </div>
             <div className="mb-3">
-             <SelectNeighborhood type="" disabled={disabled.recipient_neighborhood} value={data.recipient_neighborhood} token={token} city={data.recipient_city} set={setSelectNeighborhoodTemp}/>
+           <SelectNeighborhood
+  id="recipient_neighborhood"
+  name="recipient_neighborhood"
+  city={data.recipient_city || ""}
+  value={data.recipient_neighborhood || ""}
+  set={(v) =>
+    setData((prev:any) => ({ ...prev, recipient_neighborhood: v }))
+  }
+  disabled={type === "get"}
+  onChange={handleChange}          // ← esto dispara el cálculo
+/>
             </div>
             <div className="mb-3">
               <label

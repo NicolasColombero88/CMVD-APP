@@ -1,15 +1,22 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import Swal from "sweetalert2";
-import Icon from '@mdi/react';
-import SelectNeighborhood from './SelectNeighborhood';
-import { mdiPlusCircle, mdiPencil, mdiDelete, mdiEye, mdiEyeOff } from '@mdi/js';
+import Icon from "@mdi/react";
+import { mdiPlusCircle, mdiDelete, mdiEye, mdiEyeOff } from "@mdi/js";
 import ReCAPTCHA from "react-google-recaptcha";
+import SelectCity from "./SelectCity";
+import SelectNeighborhood from "./SelectNeighborhood";
+
 const RECAPTCHA_KEY = import.meta.env.VITE_RECAPTCHA_KEY;
-export default function FormCompany({ set = (data) => null }) {
+
+export default function FormRegister({ set = (_: any) => null }) {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState({
+  // Si no hay sesión en registro, token puede venir undefined → pasamos "" a los selects.
+  const token = useSelector((state: any) => state.auth?.token) as string | undefined;
+
+  // Estado del formulario
+  const [data, setData] = useState<any>({
     name: "",
     user_name: "",
     user_id: "",
@@ -32,46 +39,53 @@ export default function FormCompany({ set = (data) => null }) {
       },
     ],
   });
+
+  // Estado UI
   const [captchaVerified, setCaptchaVerified] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  useEffect(() => {}, []);
 
   const navigate = useNavigate();
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  // Logs de render para verificar token y estructura
+  console.log("[FormRegister] render", {
+    token: token || "(vacío)",
+    branches: data.branches,
+  });
+
+  // Handlers básicos
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { id, value } = e.target;
-    setData((prevData) => ({
+    setData((prevData: any) => ({
       ...prevData,
-      // email siempre lowercase
       [id]: id === "email" ? value.toLowerCase() : value,
     }));
   };
 
-  const handleBranchChange = (index, e) => {
-    const { name, value } = e.target;
-    const updatedBranches = [...data.branches];
-    if (name in updatedBranches[index].address) {
-      updatedBranches[index].address[name] = value;
+  // Actualiza campos de branch (y/o address.*)
+  const handleBranchField = (index: number, field: string, value: string) => {
+    const updated = [...data.branches];
+    if (field === "name" || field === "state") {
+      updated[index][field] = value;
     } else {
-      updatedBranches[index][name] = value;
+      updated[index].address[field] = value;
     }
-    setData((prevData) => ({
-      ...prevData,
-      branches: updatedBranches,
-    }));
+    setData((prev: any) => ({ ...prev, branches: updated }));
   };
 
+  // Agregar / quitar sucursal
   const addBranch = () => {
-    setData((prevData) => ({
-      ...prevData,
+    setData((prev: any) => ({
+      ...prev,
       branches: [
-        ...prevData.branches,
+        ...prev.branches,
         {
           name: "",
           address: {
             state: "",
-            city: "",
+            city: "Montevideo",
             neighborhood: "",
             street: "",
             postcode: "",
@@ -82,7 +96,7 @@ export default function FormCompany({ set = (data) => null }) {
     }));
   };
 
-  const removeBranch = (index) => {
+  const removeBranch = (index: number) => {
     if (data.branches.length === 1) {
       Swal.fire({
         icon: "error",
@@ -91,25 +105,21 @@ export default function FormCompany({ set = (data) => null }) {
       });
       return;
     }
-    const updatedBranches = [...data.branches];
-    updatedBranches.splice(index, 1);
-    setData((prevData) => ({
-      ...prevData,
-      branches: updatedBranches,
-    }));
+    const updated = data.branches.filter((_: any, i: number) => i !== index);
+    setData((prev: any) => ({ ...prev, branches: updated }));
   };
 
-  const handleSubmit = async (e) => {
+  // Submit
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
- // ——— Validación: password y confirm_password deben coincidir ———
     if (data.password !== data.confirm_password) {
       Swal.fire({
         icon: "error",
         title: "Error de validación",
         text: "Las contraseñas no coinciden. Por favor verifica ambos campos.",
       });
-      return; // cancela el envío
+      return;
     }
 
     if (!captchaVerified) {
@@ -120,26 +130,39 @@ export default function FormCompany({ set = (data) => null }) {
       });
       return;
     }
+
     setLoading(true);
-    set(data);
-    setLoading(false);
+    try {
+      // En tu app, el padre de este componente hace el POST real.
+      // Aquí sólo le pasamos todo el objeto "data".
+      set(data);
+      // Podrías redirigir si corresponde:
+      // navigate("/login");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCaptchaChange = (value) => {
-    if (value) {
-      setCaptchaVerified(true);
-    } else {
-      setCaptchaVerified(false);
-    }
+  const handleCaptchaChange = (value: string | null) => {
+    setCaptchaVerified(!!value);
   };
 
   return (
     <div className="block max-w-4xl p-8 bg-white border border-gray-300 rounded-lg shadow mx-auto">
-      <h5 className="mb-4 text-3xl font-bold tracking-tight text-gray-800">Registrate</h5>
+      <h5 className="mb-4 text-3xl font-bold tracking-tight text-gray-800">
+        Registrate
+      </h5>
+
       <form className="w-full" onSubmit={handleSubmit}>
+        {/* =======================
+            Datos principales
+           ======================= */}
         <div className="flex flex-wrap -mx-2">
           <div className="w-full md:w-1/2 px-2 ">
-            <label htmlFor="user_name" className="block mb-2 text-sm font-medium text-gray-700">
+            <label
+              htmlFor="user_name"
+              className="block mb-2 text-sm font-medium text-gray-700"
+            >
               Nombre completo
             </label>
             <input
@@ -152,30 +175,38 @@ export default function FormCompany({ set = (data) => null }) {
               required
             />
           </div>
+
           <div className="w-full md:w-1/2 px-2 ">
-            <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-700">
+            <label
+              htmlFor="email"
+              className="block mb-2 text-sm font-medium text-gray-700"
+            >
               Email
             </label>
             <input
-            type="email"
-            id="email"
-            value={data.email}
-            onChange={handleChange}
-            autoCapitalize="none"                  // evita mayúsculas en móviles
-            style={{ textTransform: "lowercase" }} // muestra siempre minúsculas
-            className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="empresa@example.com"
-            required
-          />
+              type="email"
+              id="email"
+              value={data.email}
+              onChange={handleChange}
+              autoCapitalize="none"
+              style={{ textTransform: "lowercase" }}
+              className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="empresa@example.com"
+              required
+            />
           </div>
+
           <div className="w-full md:w-1/2 px-2">
             <div className="relative">
-              <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block mb-2 text-sm font-medium text-gray-700"
+              >
                 Contraseña
               </label>
               <div className="flex">
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   id="password"
                   value={data.password}
@@ -186,27 +217,31 @@ export default function FormCompany({ set = (data) => null }) {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword(v => !v)}
+                  onClick={() => setShowPassword((v) => !v)}
                   className="flex items-center justify-center px-3 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
                   tabIndex={-1}
+                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                 >
                   <Icon
-                    path={showPassword ? mdiEye : mdiEyeOff}
+                    path={showPassword ? mdiEyeOff : mdiEye}
                     size={1}
-                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   />
                 </button>
               </div>
             </div>
           </div>
+
           <div className="w-full md:w-1/2 px-2">
             <div className="relative">
-              <label htmlFor="confirm_password" className="block mb-2 text-sm font-medium text-gray-700">
+              <label
+                htmlFor="confirm_password"
+                className="block mb-2 text-sm font-medium text-gray-700"
+              >
                 Confirmar Contraseña
               </label>
               <div className="flex">
                 <input
-                  type={showConfirm ? 'text' : 'password'}
+                  type={showConfirm ? "text" : "password"}
                   name="confirm_password"
                   id="confirm_password"
                   value={data.confirm_password}
@@ -217,21 +252,25 @@ export default function FormCompany({ set = (data) => null }) {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowConfirm(v => !v)}
+                  onClick={() => setShowConfirm((v) => !v)}
                   className="flex items-center justify-center px-3 bg-gray-100 border-t border-b border-r border-gray-300 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
                   tabIndex={-1}
+                  aria-label={showConfirm ? "Ocultar confirmación" : "Mostrar confirmación"}
                 >
                   <Icon
-                    path={showConfirm ? mdiEye : mdiEyeOff}
+                    path={showConfirm ? mdiEyeOff : mdiEye}
                     size={1}
-                    aria-label={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                   />
                 </button>
               </div>
             </div>
           </div>
+
           <div className="w-full md:w-1/2 px-2 ">
-            <label htmlFor="phone" className="block mb-2 text-sm font-medium text-gray-900">
+            <label
+              htmlFor="phone"
+              className="block mb-2 text-sm font-medium text-gray-900"
+            >
               Teléfono
             </label>
             <input
@@ -240,12 +279,16 @@ export default function FormCompany({ set = (data) => null }) {
               value={data.phone}
               onChange={handleChange}
               className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder="Telefono"
+              placeholder="Teléfono"
               required
             />
           </div>
+
           <div className="w-full md:w-1/2 px-2 ">
-            <label htmlFor="name" className="block mb-2 text-sm font-medium text-gray-700">
+            <label
+              htmlFor="name"
+              className="block mb-2 text-sm font-medium text-gray-700"
+            >
               Nombre de la Empresa
             </label>
             <input
@@ -259,6 +302,10 @@ export default function FormCompany({ set = (data) => null }) {
             />
           </div>
         </div>
+
+        {/* =======================
+            Dirección de retiro(s)
+           ======================= */}
         <div className="mb-5">
           <h6 className="mb-2 text-lg font-medium text-gray-700 flex items-center justify-center space-x-2">
             <span>Dirección retiro</span>
@@ -266,70 +313,96 @@ export default function FormCompany({ set = (data) => null }) {
               type="button"
               onClick={addBranch}
               className="p-2 rounded-full hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-green-300"
+              aria-label="Agregar dirección retiro"
             >
               <Icon path={mdiPlusCircle} size={1} color="green" />
             </button>
           </h6>
-          {data.branches.map((branch, index) => (
+
+          {data.branches.map((branch: any, index: number) => (
             <div key={index} className="flex items-center">
               <div className="flex w-[90%] flex-wrap">
+                {/* Nombre de la sucursal */}
                 <div className="w-full sm:w-1/2 md:w-1/4 p-2">
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Nombre</label>
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    Nombre
+                  </label>
                   <input
                     type="text"
                     name="name"
                     value={branch.name}
-                    onChange={(e) => handleBranchChange(index, e)}
+                    onChange={(e) => handleBranchField(index, "name", e.target.value)}
                     className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
                     placeholder="Nombre de dirección retiro"
                     required
                   />
                 </div>
+
+                {/* CIUDAD */}
                 <div className="w-full sm:w-1/2 md:w-1/4 p-2">
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Ciudad</label>
-                  <select
-                    name="city"
-                    value={branch.address.city}
-                    onChange={(e) => handleBranchChange(index, e)}
-                    className="block w-full py-2 pl-3 pr-10 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    required
-                  >
-                    <option value="Canelones">Canelones</option>
-                    <option value="Montevideo">Montevideo</option>
-                  </select>
-                </div>
-                <div className="w-full sm:w-1/2 md:w-1/4 p-2">
-                  <SelectNeighborhood
-                    type=""
-                    city={branch.address.city}
-                    set={(value) => {
-                      const updatedBranches = [...data.branches];
-                      updatedBranches[index].address.neighborhood = value;
-                      setData((prevData) => ({
-                        ...prevData,
-                        branches: updatedBranches,
-                      }));
+                  <SelectCity
+                    id={`branch_city_${index}`}
+                    name={`branch_city_${index}`}
+                    label="Ciudad"
+                    token={token || ""} // tolerante: si no hay sesión, no rompe
+                    value={branch.address.city || ""}
+                    disabled={false}
+                    set={(v: string) => {
+                      console.log("[SelectCity] set()", { index, cityElegida: v, token: token || "(vacío)" });
+                      const updated = [...data.branches];
+                      updated[index].address.city = v;
+                      updated[index].address.neighborhood = ""; // al cambiar ciudad, vaciamos barrio
+                      setData((prev: any) => ({ ...prev, branches: updated }));
                     }}
                   />
                 </div>
+
+                {/* BARRIO */}
                 <div className="w-full sm:w-1/2 md:w-1/4 p-2">
-                  <label className="block mb-2 text-sm font-medium text-gray-700">Dirección - Apartamento</label>
+                  <SelectNeighborhood
+                    id={`branch_neighborhood_${index}`}
+                    name={`branch_neighborhood_${index}`}
+                    label="Barrio"
+                    city={branch.address.city || ""}
+                    value={branch.address.neighborhood || ""}
+                    disabled={false}
+                    set={(value: string) => {
+                      console.log("[SelectNeighborhood] set()", {
+                        index,
+                        ciudadActual: branch.address.city || "(vacía)",
+                        barrioElegido: value,
+                      });
+                      const updated = [...data.branches];
+                      updated[index].address.neighborhood = value;
+                      setData((prev: any) => ({ ...prev, branches: updated }));
+                    }}
+                  />
+                </div>
+
+                {/* Dirección */}
+                <div className="w-full sm:w-1/2 md:w-1/4 p-2">
+                  <label className="block mb-2 text-sm font-medium text-gray-700">
+                    Dirección - Apartamento
+                  </label>
                   <input
                     type="text"
                     name="street"
                     value={branch.address.street}
-                    onChange={(e) => handleBranchChange(index, e)}
+                    onChange={(e) => handleBranchField(index, "street", e.target.value)}
                     className="block w-full py-2 pl-3 pr-2 text-sm bg-white border border-gray-300 rounded-[10px] focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    placeholder="Calle"
+                    placeholder="Calle, número, apto"
                     required
                   />
                 </div>
               </div>
+
+              {/* Eliminar sucursal */}
               <div className="ml-2">
                 <button
                   type="button"
                   onClick={() => removeBranch(index)}
                   className="px-2 py-1 mt-7 text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-xs"
+                  aria-label="Eliminar dirección retiro"
                 >
                   <Icon path={mdiDelete} size={1} />
                 </button>
@@ -337,12 +410,14 @@ export default function FormCompany({ set = (data) => null }) {
             </div>
           ))}
         </div>
+
+        {/* =======================
+            reCAPTCHA + Submit
+           ======================= */}
         <div className="mb-5">
-          <ReCAPTCHA
-            sitekey={RECAPTCHA_KEY}
-            onChange={handleCaptchaChange}
-          />
+          <ReCAPTCHA sitekey={RECAPTCHA_KEY} onChange={handleCaptchaChange} />
         </div>
+
         <button
           type="submit"
           disabled={loading}
