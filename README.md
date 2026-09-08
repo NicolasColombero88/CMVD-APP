@@ -415,8 +415,3 @@ Asegurarse de que no haya otros procesos usando:
 Este proyecto se encuentra identificado con titularidad de **Nicolas Colombero**.
 
 - Autor y titular: **Nicolas Colombero**
-- Uso, distribución o cesión: sujeto a autorización expresa del titular o a lo pactado contractualmente
-- Licencia técnica: definir según la estrategia legal y comercial del proyecto
-
-> Si se desea publicar este repositorio de forma abierta, conviene reemplazar esta sección por una licencia formal específica.  
-> Si se trata de software propietario, esta redacción es más consistente que declarar MIT sin respaldo contractual.
